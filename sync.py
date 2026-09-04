@@ -12,7 +12,7 @@ import google.generativeai as genai
 import firebase_admin
 from firebase_admin import credentials, firestore
 
-GARMIN_EMAIL = os.environ.get("GARMIN_EMAIL")
+GARMIN_EMAIL = os.environ.get("GARMIN_EMAIL")get_garmin_client
 GARMIN_PASSWORD = os.environ.get("GARMIN_PASSWORD")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 FIREBASE_SERVICE_ACCOUNT = os.environ.get("FIREBASE_SERVICE_ACCOUNT")
@@ -38,27 +38,15 @@ if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 
 def get_garmin_client():
-    """세션 토큰 캐싱을 통한 가민 로그인 IP 차단 방어"""
-    try:
-        client = Garmin()
-        client.login(TOKEN_DIR)
-        print("기존 가민 로그인 세션 재사용 성공")
-        return client
-    except Exception:
-        try:
-            print("신규 가민 로그인 시도...")
-            client = Garmin(GARMIN_EMAIL, GARMIN_PASSWORD, is_cn=False)
-            client.login()
-            os.makedirs(TOKEN_DIR, exist_ok=True)
-            client.garth.dump(TOKEN_DIR)
-            print("신규 가민 로그인 성공 및 세션 저장 완료")
-            return client
-        except GarminConnectTooManyRequestsError:
-            print("치명적 오류: 가민 서버 IP 차단(429) 상태입니다.")
-            raise
-        except Exception as e:
-            print(f"가민 로그인 실패: {e}")
-            raise
+    """가민 로그인 및 클라이언트 생성"""
+    if not GARMIN_EMAIL or not GARMIN_PASSWORD:
+        raise ValueError("GARMIN_EMAIL 또는 GARMIN_PASSWORD 시크릿이 비어 있습니다.")
+    
+    print("가민 로그인 시도...")
+    client = Garmin(GARMIN_EMAIL, GARMIN_PASSWORD)
+    client.login()
+    print("가민 로그인 성공!")
+    return client
 
 def generate_ai_analysis(date_str, sessions_summary):
     if not GEMINI_API_KEY:
