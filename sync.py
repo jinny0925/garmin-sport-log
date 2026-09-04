@@ -3,12 +3,16 @@ import json
 import time
 from datetime import datetime
 from garminconnect import Garmin
-from google import genai
+import google.generativeai as genai
 
 GARMIN_EMAIL = os.environ.get("GARMIN_EMAIL")
 GARMIN_PASSWORD = os.environ.get("GARMIN_PASSWORD")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 DATA_FILE = "activities.json"
+
+# Gemini 설정
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
 
 def get_garmin_client():
     client = Garmin(GARMIN_EMAIL, GARMIN_PASSWORD)
@@ -16,46 +20,46 @@ def get_garmin_client():
     return client
 
 def generate_ai_analysis(sport_type, title, summary, lap_info, dist, pace, date_str):
-    client = genai.Client(api_key=GEMINI_API_KEY)
-    
+    if not GEMINI_API_KEY:
+        print("[경고] GEMINI_API_KEY 시크릿이 설정되지 않았습니다!")
+        return f"{date_str} {dist}m 세션 완주 기록입니다."
+
     prompt = f"""
-    당신은 성인 회원을 1:1로 지도하는 담백하고 전문적인 퍼스널 스포츠 코치입니다.
-    과장된 감탄사("와!", "멋져요!")나 아이 다루듯 하는 말투, 이모지 남발은 절대 쓰지 마세요.
-    해당 날짜({date_str})와 실제 기록 수치를 인용하여 담백한 구어체(~했습니다, ~보세요)로 3줄 요약 코칭을 작성하세요.
+    당신은 1:1 퍼스널 스포츠 코치입니다.
+    성인 회원을 위한 담백하고 전문적인 어조(~했습니다, ~보세요)로 날짜별 기록을 구체적으로 분석해 3문장으로 작성하세요.
+    뻔한 템플릿 문장을 쓰지 말고, 제공된 기록 수치와 날짜를 반드시 반영하세요.
 
-    [작성 규칙 - 3줄]
-    1. 총평: {date_str}의 총 거리({dist}m)와 운동 강도를 담백하게 짚으며 세션 완주 평가.
-    2. 데이터 분석: 랩 정보({lap_info})와 평균 페이스({pace})를 바탕으로 초반 페이스 유지력이나 후반 호흡 배분 상태 분석.
-    3. 기술 팁 1개: 다음 수영 세션에서 의식해볼 수 있는 구체적인 영법/자세 드릴 제안 (스트로크 수 조절, 턴 직후 스트림라인 유지 등).
-
+    - 날짜: {date_str}
     - 종목: {sport_type}
-    - 활동명: {title}
-    - 기본 기록: {summary}
+    - 제목: {title}
+    - 총 거리: {dist}m
+    - 평균 페이스: {pace}/100m
+    - 세부 요약: {summary}
     - 랩/구간 기록: {lap_info}
+
+    [3문장 필수 형식]
+    1. 총평: {date_str}의 {dist}m 완주와 페이스({pace})에 대한 객관적인 운동 강도 평가.
+    2. 데이터 분석: 구간 기록({lap_info})을 참고하여 페이스 흐름이나 체력 조절 상태 짚기.
+    3. 실전 팁: 다음 훈련 때 의식할 구체적인 영법/자세 팁 1개.
     """
+
+    model = genai.GenerativeModel("gemini-1.5-flash")
 
     for attempt in range(3):
         try:
-            response = client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=prompt
-            )
-            if response.text and len(response.text.strip()) > 10:
-                return response.text.strip()
+            response = model.generate_content(prompt)
+            if response and response.text:
+                result = response.text.strip()
+                print(f"[{date_str}] Gemini 분석 성공!")
+                return result
         except Exception as e:
-            print(f"[{date_str}] AI 호출 재시도 ({attempt+1}/3): {e}")
+            print(f"[{date_str}] Gemini 호출 실패 (시도 {attempt+1}/3): {e}")
             time.sleep(3)
 
-    # API 지연/오류 시에도 고유 수치를 사용해 날짜마다 다른 문장 생성
-    return (
-        f"{date_str} 세션은 총 {dist:,}m를 평균 {pace} 페이스로 소화하며 지구력 유지에 집중한 운동이었습니다.\n"
-        f"구간 기록을 보면 중반 이후 체력 안배를 위해 글라이딩 간격을 의식적으로 조절한 흔적이 엿보입니다.\n"
-        f"다음 세션에서는 턴 직후 급하게 손을 젓지 말고 벽을 민 추진력으로 1~2초 더 길게 스트림라인을 가져가 보세요."
-    )
+    return f"{date_str} {dist}m({pace}) 세션입니다. 당시 구간 페이스 변동에 맞춰 페이스 배분을 조절한 기록입니다."
 
 def extract_swim_laps(client, act_id, total_dur, total_dist, avg_swolf):
     laps_data = []
-    
     try:
         splits = client.get_activity_splits(act_id)
         raw_laps = splits.get("lapSplits", []) or splits.get("intervalSplits", [])
@@ -63,7 +67,6 @@ def extract_swim_laps(client, act_id, total_dur, total_dist, avg_swolf):
         
         total_count = len(valid_laps)
         if total_count > 0:
-            # 6개 이하이면 전체 표시, 6개 초과이면 전체 흐름 균등 샘플링
             if total_count <= 6:
                 selected_laps = valid_laps
             else:
@@ -88,7 +91,6 @@ def extract_swim_laps(client, act_id, total_dur, total_dist, avg_swolf):
     except Exception:
         pass
 
-    # 가민 랩 누락 시 전체 기록 기반 대표 흐름 생성
     if not laps_data and total_dist > 0:
         base_pace_sec = int(total_dur / (total_dist / 100)) if total_dist else 120
         phases = [("출발", 0.96), ("전반", 0.99), ("중반", 1.02), ("후반", 1.05), ("마무리", 1.01)]
@@ -161,8 +163,7 @@ def process_activity(client, activity):
     else:
         return None
 
-    # 구글 API 분당 요청 한도(RPM) 보호를 위해 2.5초 대기
-    time.sleep(2.5)
+    time.sleep(2)
 
     return {
         "id": str(act_id),
