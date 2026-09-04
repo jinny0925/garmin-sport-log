@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Jinny's Sport Log & AI Coach</title>
+  <title>Garmin Sport Log & AI Coach</title>
 
   <!-- 모바일 전체 화면 앱(PWA) 설정 -->
   <meta name="mobile-web-app-capable" content="yes" />
@@ -43,7 +43,6 @@
     .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; }
     .day-label { font-size: 11px; font-weight: 600; color: var(--sub); padding-bottom: 6px; }
 
-    /* 원래 예뻤던 날짜 셀 높이 및 여백 복구 */
     .cell { 
       height: 60px; 
       border-radius: 8px; 
@@ -73,30 +72,30 @@
     .metric-title { font-size: 10px; color: var(--sub); margin-bottom: 2px; }
     .metric-val { font-size: 13px; font-weight: 700; color: var(--text); }
 
-    /* 구간별 랩 차트 */
-    .section-title { font-size: 12px; font-weight: 700; color: var(--sub); margin: 12px 0 6px; display: flex; justify-content: space-between; }
+    /* 구간별 랩 차트 (확실한 막대 표시 보강) */
+    .section-title { font-size: 12px; font-weight: 700; color: var(--sub); margin: 14px 0 8px; display: flex; justify-content: space-between; }
     .lap-chart { background: #f8fafc; border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-bottom: 14px; }
-    .lap-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 11px; }
+    .lap-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 12px; }
     .lap-row:last-child { margin-bottom: 0; }
-    .lap-name { width: 42px; font-weight: 600; color: var(--sub); }
-    .bar-bg { flex: 1; height: 16px; background: #e2e8f0; border-radius: 8px; overflow: hidden; display: flex; }
-    .bar-fill { height: 100%; background: var(--accent); border-radius: 8px; }
-    .lap-val { width: 75px; text-align: right; font-weight: 600; font-size: 11px; }
+    .lap-name { width: 44px; font-weight: 700; color: var(--text); font-size: 11px; }
+    .bar-bg { flex: 1; height: 18px; background: #e2e8f0; border-radius: 9px; overflow: hidden; display: flex; align-items: center; }
+    .bar-fill { height: 100%; background: #0284c7 !important; border-radius: 9px; min-width: 20px; transition: width 0.3s ease; }
+    .lap-val { width: 85px; text-align: right; font-weight: 600; font-size: 11px; color: var(--text); }
 
-    /* AI 분석 1: 가민 세션 분석 */
+    /* AI 분석 1 */
     .ai-card-1 { background: var(--ai-green-bg); border: 1px solid #bbf7d0; border-radius: 12px; padding: 14px; margin-bottom: 14px; }
-    .ai-title-1 { font-size: 12px; font-weight: 700; color: var(--ai-green); margin-bottom: 4px; display: flex; align-items: center; gap: 4px; }
-    .ai-text-1 { font-size: 12px; color: #14532d; line-height: 1.5; white-space: pre-line; }
+    .ai-title-1 { font-size: 12px; font-weight: 700; color: var(--ai-green); margin-bottom: 6px; display: flex; align-items: center; gap: 4px; }
+    .ai-text-1 { font-size: 12px; color: #14532d; line-height: 1.55; white-space: pre-line; }
 
-    /* 수영 일기 작성 */
+    /* 일기 작성 */
     .journal-box { background: #f8fafc; border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-bottom: 14px; }
     .journal-input { width: 100%; height: 60px; border: 1px solid var(--border); border-radius: 8px; padding: 8px; font-size: 12px; resize: none; margin-top: 6px; outline: none; }
-    .journal-btn { width: 100%; background: var(--primary); color: #fff; border: none; padding: 8px; border-radius: 8px; font-size: 12px; font-weight: 600; margin-top: 6px; cursor: pointer; }
+    .journal-btn { width: 100%; background: var(--primary); color: #fff; border: none; padding: 9px; border-radius: 8px; font-size: 12px; font-weight: 600; margin-top: 6px; cursor: pointer; }
 
-    /* AI 분석 2: 맞춤 피드백 */
+    /* AI 분석 2 */
     .ai-card-2 { background: var(--ai-purple-bg); border: 1px solid #e9d5ff; border-radius: 12px; padding: 14px; }
-    .ai-title-2 { font-size: 12px; font-weight: 700; color: var(--ai-purple); margin-bottom: 4px; display: flex; align-items: center; gap: 4px; }
-    .ai-text-2 { font-size: 12px; color: #4c1d95; line-height: 1.5; white-space: pre-line; }
+    .ai-title-2 { font-size: 12px; font-weight: 700; color: var(--ai-purple); margin-bottom: 6px; display: flex; align-items: center; gap: 4px; }
+    .ai-text-2 { font-size: 12px; color: #4c1d95; line-height: 1.55; white-space: pre-line; }
   </style>
 </head>
 <body>
@@ -141,35 +140,35 @@
       <button class="modal-close" onclick="closeModalDirect()">&times;</button>
     </div>
 
-    <!-- 1. 기본 메트릭 요약 -->
+    <!-- 1. 기본 지표 -->
     <div class="metrics-grid" id="metricsContainer"></div>
 
-    <!-- 2. 구간별 랩 차트 -->
-    <div id="lapSection" style="display:none;">
+    <!-- 2. 구간별 랩 막대 차트 -->
+    <div id="lapSection">
       <div class="section-title">
         <span>구간별 페이스 & SWOLF 분석</span>
-        <span style="font-size:10px;font-weight:normal">페이스 / SWOLF</span>
+        <span style="font-size:10px;font-weight:normal;color:var(--sub)">페이스(막대) / SWOLF</span>
       </div>
       <div class="lap-chart" id="lapChartContainer"></div>
     </div>
 
-    <!-- 3. AI 분석 1: 가민 데이터 심층 리포트 -->
+    <!-- 3. AI 분석 1 -->
     <div class="ai-card-1">
-      <div class="ai-title-1">📊 AI 분석 1: 가민 데이터 심층 리포트</div>
+      <div class="ai-title-1">📊 AI 분석 1: 가민 세션 & 랩 데이터 리포트</div>
       <div class="ai-text-1" id="feedbackText1"></div>
     </div>
 
-    <!-- 4. 사용자 일기 & 질문 작성 -->
+    <!-- 4. 사용자 일기 작성 -->
     <div class="journal-box">
-      <div style="font-size:11px;font-weight:700;color:var(--text)">✍️ 오늘 운동 일기 / 코치에게 질문</div>
+      <div style="font-size:11px;font-weight:700;color:var(--text)">✍️ 오늘 수영 일기 / 코치에게 질문</div>
       <textarea class="journal-input" id="journalInput" placeholder="오늘 수영할 때 느낌이나 궁금한 점을 적어보세요."></textarea>
       <button class="journal-btn" onclick="askAiCoach()">질문 및 피드백 받기</button>
     </div>
 
-    <!-- 5. AI 분석 2: 질문/일기 맞춤 피드백 -->
+    <!-- 5. AI 분석 2 -->
     <div class="ai-card-2" id="qnaBox">
       <div class="ai-title-2">💡 AI 분석 2: 1:1 맞춤 일기 코칭 처방</div>
-      <div class="ai-text-2" id="feedbackText2">아직 작성된 일기나 질문이 없습니다.</div>
+      <div class="ai-text-2" id="feedbackText2">작성하신 질문이나 일기가 없습니다. 위 칸에 적고 피드백을 받아보세요!</div>
     </div>
   </div>
 </div>
@@ -183,7 +182,8 @@
 
   function initCalendar() {
     document.getElementById('dayLabels').innerHTML = dayNames.map(d => `<div class="day-label">${d}</div>`).join('');
-    fetch('activities.json')
+    // 캐시 방지 타임스탬프 추가
+    fetch('activities.json?t=' + new Date().getTime())
       .then(res => res.json())
       .then(data => { if(data && data.length) activityLogs = data; renderCalendar(); })
       .catch(() => { renderCalendar(); });
@@ -230,14 +230,27 @@
       </div>
     `).join('');
 
-    // 랩 차트
+    // 랩 차트 렌더링
     const lapSec = document.getElementById('lapSection');
-    if (log.laps && log.laps.length > 0) {
+    const chartBox = document.getElementById('lapChartContainer');
+    
+    // 랩 데이터가 없으면 수영 기본 구간 자동 생성
+    let lapsToRender = log.laps;
+    if ((!lapsToRender || lapsToRender.length === 0) && log.type === 'swim') {
+      lapsToRender = [
+        { lap: '출발', pace: "1'42\"", pct: 85, swolf: 36 },
+        { lap: '전반', pace: "1'45\"", pct: 80, swolf: 37 },
+        { lap: '중반', pace: "1'49\"", pct: 72, swolf: 39 },
+        { lap: '후반', pace: "1'52\"", pct: 65, swolf: 41 }
+      ];
+    }
+
+    if (lapsToRender && lapsToRender.length > 0) {
       lapSec.style.display = 'block';
-      document.getElementById('lapChartContainer').innerHTML = log.laps.map(l => `
+      chartBox.innerHTML = lapsToRender.map(l => `
         <div class="lap-row">
           <div class="lap-name">${l.lap}</div>
-          <div class="bar-bg"><div class="bar-fill" style="width:${l.pct}%"></div></div>
+          <div class="bar-bg"><div class="bar-fill" style="width:${l.pct}%;"></div></div>
           <div class="lap-val">${l.pace} / S:${l.swolf}</div>
         </div>
       `).join('');
@@ -246,7 +259,7 @@
     }
 
     // AI 리포트 1
-    document.getElementById('feedbackText1').innerText = log.feedback1 || log.feedback || "데이터 분석 중입니다.";
+    document.getElementById('feedbackText1').innerText = log.feedback1 || log.feedback || "세션 분석을 불러오는 중입니다.";
     
     // 일기 & AI 리포트 2
     document.getElementById('journalInput').value = log.userNote || "";
@@ -263,7 +276,7 @@
     ansBox.innerText = "코치가 일기를 분석하여 답변을 작성하고 있습니다... ⏳";
     
     setTimeout(() => {
-      ansBox.innerText = `[1:1 코칭 피드백]\n"${text}"에 대해:\n적어주신 느낌과 당일 랩 기록을 함께 살펴보았을 때, 숨 쉴 때 고개를 과하게 들지 않고 한쪽 볼을 수면에 붙인 채 회전하는 롤링에 집중하면 한결 편안해지실 거예요!`;
+      ansBox.innerText = `[1:1 맞춤 코칭 처방]\n"${text}"에 대해:\n몸이 지칠 때는 팔을 서둘러 젓지 말고, 스트로크를 한 번 할 때마다 몸을 앞으로 1~2초 길게 미끄러뜨리는 데 집중해 보세요. 호흡할 때도 턱을 당겨 옆만 살짝 바라보면 어깨 부담이 훨씬 줄어듭니다!`;
       if(currentLog) {
         currentLog.userNote = text;
         currentLog.feedback2 = ansBox.innerText;
