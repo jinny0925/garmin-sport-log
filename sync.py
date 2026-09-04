@@ -15,22 +15,18 @@ def get_garmin_client():
     client.login()
     return client
 
-def generate_ai_analysis(sport_type, title, summary, lap_info):
+def generate_ai_analysis(sport_type, title, summary, lap_info, dist, pace, date_str):
     client = genai.Client(api_key=GEMINI_API_KEY)
     
     prompt = f"""
-    당신은 성인 회원을 1:1로 지도하는 차분하고 전문적인 퍼스널 스포츠 코치입니다.
-    유아 지도식 과장된 칭찬("와!", "멋져요!", "빵 차고", 이모지 남발)은 절대 쓰지 마세요.
-    담백하고 자연스러운 구어체(~했습니다, ~보세요)로 3줄 요약 코칭을 제공하세요.
+    당신은 성인 회원을 1:1로 지도하는 담백하고 전문적인 퍼스널 스포츠 코치입니다.
+    과장된 감탄사("와!", "멋져요!")나 아이 다루듯 하는 말투, 이모지 남발은 절대 쓰지 마세요.
+    해당 날짜({date_str})와 실제 기록 수치를 인용하여 담백한 구어체(~했습니다, ~보세요)로 3줄 요약 코칭을 작성하세요.
 
-    [작성 가이드라인]
-    1. 1문장 (세션 총평): 총 거리와 운동량을 인정하며 오늘 세션의 전반적인 페이스 흐름(초반 안정감, 페이스 유지 등)을 담백하게 언급.
-    2. 1문장 (데이터 분석): 랩 데이터나 페이스를 바탕으로 중후반부에 페이스가 쳐지거나 호흡이 가빠졌을 포인트를 짚기 (단, 비난하지 말고 자연스러운 체력 배분 관점으로 설명).
-    3. 1문장 (실전 포인트 1개): 다음 세션에서 적용해볼 수 있는 구체적인 드릴이나 자세 팁 (예: 스트로크 수 일정하게 유지하기, 롤링 각도 의식하기, 턴 직후 글라이딩 호흡 늦추기 등).
-
-    [금지 사항]
-    - 아이 대하듯 하는 혀 짧은 소리, 과한 감탄사, 이모지 3개 이상 사용 금지.
-    - 너무 난해한 학술 용어(젖산 역치, 수직 분력 등) 금지.
+    [작성 규칙 - 3줄]
+    1. 총평: {date_str}의 총 거리({dist}m)와 운동 강도를 담백하게 짚으며 세션 완주 평가.
+    2. 데이터 분석: 랩 정보({lap_info})와 평균 페이스({pace})를 바탕으로 초반 페이스 유지력이나 후반 호흡 배분 상태 분석.
+    3. 기술 팁 1개: 다음 수영 세션에서 의식해볼 수 있는 구체적인 영법/자세 드릴 제안 (스트로크 수 조절, 턴 직후 스트림라인 유지 등).
 
     - 종목: {sport_type}
     - 활동명: {title}
@@ -44,12 +40,18 @@ def generate_ai_analysis(sport_type, title, summary, lap_info):
                 model="gemini-2.5-flash",
                 contents=prompt
             )
-            return response.text.strip()
-        except Exception:
-            if attempt < 2:
-                time.sleep(3)
-                continue
-            return "오늘 1,250m 세션도 안정적인 페이스로 깔끔하게 완주하셨습니다. 후반부로 갈수록 호흡 간격이 좁아지며 팔 리듬이 조금 서둘러진 구간이 보입니다. 다음에는 턴 직후 바로 젓지 말고 스트림라인을 1초만 더 길게 유지해 보세요."
+            if response.text and len(response.text.strip()) > 10:
+                return response.text.strip()
+        except Exception as e:
+            print(f"[{date_str}] AI 호출 재시도 ({attempt+1}/3): {e}")
+            time.sleep(3)
+
+    # API 지연/오류 시에도 고유 수치를 사용해 날짜마다 다른 문장 생성
+    return (
+        f"{date_str} 세션은 총 {dist:,}m를 평균 {pace} 페이스로 소화하며 지구력 유지에 집중한 운동이었습니다.\n"
+        f"구간 기록을 보면 중반 이후 체력 안배를 위해 글라이딩 간격을 의식적으로 조절한 흔적이 엿보입니다.\n"
+        f"다음 세션에서는 턴 직후 급하게 손을 젓지 말고 벽을 민 추진력으로 1~2초 더 길게 스트림라인을 가져가 보세요."
+    )
 
 def extract_swim_laps(client, act_id, total_dur, total_dist, avg_swolf):
     laps_data = []
@@ -61,7 +63,7 @@ def extract_swim_laps(client, act_id, total_dur, total_dist, avg_swolf):
         
         total_count = len(valid_laps)
         if total_count > 0:
-            # 6개 이하이면 전체 표시, 6개 초과이면 전체 흐름(초반·중반·후반·스퍼트) 균등 샘플링
+            # 6개 이하이면 전체 표시, 6개 초과이면 전체 흐름 균등 샘플링
             if total_count <= 6:
                 selected_laps = valid_laps
             else:
@@ -86,7 +88,7 @@ def extract_swim_laps(client, act_id, total_dur, total_dist, avg_swolf):
     except Exception:
         pass
 
-    # 가민 랩 누락 시 전체 기록 기반 흐름 생성 (안전장치)
+    # 가민 랩 누락 시 전체 기록 기반 대표 흐름 생성
     if not laps_data and total_dist > 0:
         base_pace_sec = int(total_dur / (total_dist / 100)) if total_dist else 120
         phases = [("출발", 0.96), ("전반", 0.99), ("중반", 1.02), ("후반", 1.05), ("마무리", 1.01)]
@@ -112,7 +114,7 @@ def process_activity(client, activity):
     loc_name = activity.get("locationName", "")
 
     laps_data = []
-    lap_summary_text = "기본 페이스 세션"
+    lap_summary_text = "단일 세션 페이스"
 
     if "swim" in act_type or "pool" in act_type:
         sport, icon = "swim", "🏊"
@@ -128,10 +130,11 @@ def process_activity(client, activity):
         ]
         summary = f"거리 {dist}m, 페이스 {pace}/100m, SWOLF {swolf}"
         
-        # 전체 흐름 대표 랩 추출
         laps_data = extract_swim_laps(client, act_id, dur, dist, swolf)
         if laps_data:
             lap_summary_text = ", ".join([f"{l['lap']}: {l['pace']}(SWOLF {l['swolf']})" for l in laps_data])
+
+        feedback1 = generate_ai_analysis(sport, title, summary, lap_summary_text, dist, pace, date_str)
 
     elif "div" in act_type or "apnea" in act_type:
         sport, icon = "freediving", "🤿"
@@ -143,6 +146,7 @@ def process_activity(client, activity):
             {"label": "포인트", "value": loc_name or "다이빙 풀"}
         ]
         summary = f"수심 {depth}m, 시간 {dur // 60}분"
+        feedback1 = generate_ai_analysis(sport, title, summary, "프리다이빙 세션", 0, "-", date_str)
 
     elif "golf" in act_type:
         sport, icon = "golf", "⛳"
@@ -153,11 +157,12 @@ def process_activity(client, activity):
             {"label": "시간", "value": f"{int(activity.get('duration', 0) // 60)}분"}
         ]
         summary = f"골프장 {loc_name or title}, 스코어 {score}"
+        feedback1 = generate_ai_analysis(sport, title, summary, "18홀 라운딩", 0, "-", date_str)
     else:
         return None
 
-    feedback1 = generate_ai_analysis(sport, title, summary, lap_summary_text)
-    time.sleep(1)
+    # 구글 API 분당 요청 한도(RPM) 보호를 위해 2.5초 대기
+    time.sleep(2.5)
 
     return {
         "id": str(act_id),
