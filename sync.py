@@ -10,7 +10,6 @@ GARMIN_PASSWORD = os.environ.get("GARMIN_PASSWORD")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 DATA_FILE = "activities.json"
 
-# Gemini 설정
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 
@@ -21,7 +20,6 @@ def get_garmin_client():
 
 def generate_ai_analysis(sport_type, title, summary, lap_info, dist, pace, date_str):
     if not GEMINI_API_KEY:
-        print("[경고] GEMINI_API_KEY 시크릿이 설정되지 않았습니다!")
         return f"{date_str} {dist}m 세션 완주 기록입니다."
 
     prompt = f"""
@@ -45,7 +43,7 @@ def generate_ai_analysis(sport_type, title, summary, lap_info, dist, pace, date_
 
     model = genai.GenerativeModel("gemini-2.5-flash")
 
-    for attempt in range(3):
+    for attempt in range(4):
         try:
             response = model.generate_content(prompt)
             if response and response.text:
@@ -53,10 +51,17 @@ def generate_ai_analysis(sport_type, title, summary, lap_info, dist, pace, date_
                 print(f"[{date_str}] Gemini 분석 성공!")
                 return result
         except Exception as e:
-            print(f"[{date_str}] Gemini 호출 실패 (시도 {attempt+1}/3): {e}")
-            time.sleep(3)
+            err_msg = str(e)
+            print(f"[{date_str}] 호출 실패 (시도 {attempt+1}/4): {err_msg[:60]}...")
+            # 429 Quota 에러일 경우 구글 권장 대기 시간 반영 (15초 이상 쿨다운)
+            if "429" in err_msg or "quota" in err_msg.lower():
+                wait_sec = 20 * (attempt + 1)
+                print(f"--> Quota 초과 감지. {wait_sec}초 동안 쿨다운 대기...")
+                time.sleep(wait_sec)
+            else:
+                time.sleep(4)
 
-    return f"{date_str} {dist}m({pace}) 세션입니다. 당시 구간 페이스 변동에 맞춰 페이스 배분을 조절한 기록입니다."
+    return f"{date_str} {dist}m({pace}) 세션입니다. 페이스 흐름을 안정적으로 조절하며 완주한 기록입니다."
 
 def extract_swim_laps(client, act_id, total_dur, total_dist, avg_swolf):
     laps_data = []
@@ -163,7 +168,8 @@ def process_activity(client, activity):
     else:
         return None
 
-    time.sleep(2)
+    # 세션 간 넉넉한 딜레이 (분당 쿼터 방어)
+    time.sleep(6)
 
     return {
         "id": str(act_id),
@@ -181,7 +187,8 @@ def process_activity(client, activity):
 
 def main():
     client = get_garmin_client()
-    raw_list = client.get_activities(0, 20)
+    # 쿼터 보호를 위해 최근 8개 세션만 집중 처리
+    raw_list = client.get_activities(0, 8)
 
     data = []
     if os.path.exists(DATA_FILE):
