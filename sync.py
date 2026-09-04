@@ -4,12 +4,31 @@ import time
 from datetime import datetime
 from garminconnect import Garmin
 import google.generativeai as genai
+import firebase_admin
+from firebase_admin import credentials, firestore
 
+# 환경변수 로드
 GARMIN_EMAIL = os.environ.get("GARMIN_EMAIL")
 GARMIN_PASSWORD = os.environ.get("GARMIN_PASSWORD")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-DATA_FILE = "activities.json"
+FIREBASE_SERVICE_ACCOUNT = os.environ.get("FIREBASE_SERVICE_ACCOUNT")
 
+# Firebase Admin 초기화
+if FIREBASE_SERVICE_ACCOUNT:
+    try:
+        cred_dict = json.loads(FIREBASE_SERVICE_ACCOUNT)
+        cred = credentials.Certificate(cred_dict)
+        firebase_admin.initialize_app(cred)
+        db = firestore.client()
+        print("Firestore 연결 성공!")
+    except Exception as e:
+        print(f"Firestore 초기화 실패: {e}")
+        db = None
+else:
+    print("경고: FIREBASE_SERVICE_ACCOUNT 시크릿이 없습니다.")
+    db = None
+
+# Gemini API 초기화
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 
@@ -18,202 +37,193 @@ def get_garmin_client():
     client.login()
     return client
 
-def generate_ai_analysis(sport_type, title, summary, lap_info, dist, pace, date_str):
+def generate_ai_analysis(date_str, sessions_summary):
+    """하루의 모든 세션을 통합하여 3문장 코칭 생성"""
     if not GEMINI_API_KEY:
-        return f"{date_str} {dist}m 세션 완주 기록입니다."
+        return f"{date_str} 세션 완주 기록입니다."
 
     prompt = f"""
     당신은 1:1 퍼스널 스포츠 코치입니다.
-    성인 회원을 위한 담백하고 전문적인 어조(~했습니다, ~보세요)로 날짜별 기록을 구체적으로 분석해 3문장으로 작성하세요.
-    뻔한 템플릿 문장을 쓰지 말고, 제공된 기록 수치와 날짜를 반드시 반영하세요.
+    성인 회원을 위한 전문적이고 담백한 어조(~했습니다, ~보세요)로 하루 운동 전체를 종합 분석해 3문장으로 작성하세요.
+    뻔한 템플릿 문장을 쓰지 말고, 제공된 기록 수치를 반드시 반영하세요.
 
     - 날짜: {date_str}
-    - 종목: {sport_type}
-    - 제목: {title}
-    - 총 거리: {dist}m
-    - 평균 페이스: {pace}/100m
-    - 세부 요약: {summary}
-    - 랩/구간 기록: {lap_info}
+    - 당일 운동 세션 목록:
+    {sessions_summary}
 
     [3문장 필수 형식]
-    1. 총평: {date_str}의 {dist}m 완주와 페이스({pace})에 대한 객관적인 운동 강도 평가.
-    2. 데이터 분석: 구간 기록({lap_info})을 참고하여 페이스 흐름이나 체력 조절 상태 짚기.
-    3. 실전 팁: 다음 훈련 때 의식할 구체적인 영법/자세 팁 1개.
+    1. 총평: {date_str}에 수행한 전체 운동량과 강도에 대한 객관적인 총평.
+    2. 데이터 분석: 구간 페이스나 운동별 특징, 체력 안배 상태 분석.
+    3. 실전 팁: 다음 훈련 때 의식할 구체적인 영법/자세 또는 회복 팁 1개.
     """
 
     model = genai.GenerativeModel("gemini-2.5-flash")
-
-    for attempt in range(4):
+    for attempt in range(3):
         try:
             response = model.generate_content(prompt)
             if response and response.text:
-                result = response.text.strip()
                 print(f"[{date_str}] Gemini 분석 성공!")
-                return result
+                return response.text.strip()
         except Exception as e:
             err_msg = str(e)
-            print(f"[{date_str}] 호출 실패 (시도 {attempt+1}/4): {err_msg[:60]}...")
-            # 429 Quota 에러일 경우 구글 권장 대기 시간 반영 (15초 이상 쿨다운)
+            print(f"[{date_str}] AI 호출 재시도 ({attempt+1}/3): {err_msg[:60]}...")
             if "429" in err_msg or "quota" in err_msg.lower():
-                wait_sec = 20 * (attempt + 1)
-                print(f"--> Quota 초과 감지. {wait_sec}초 동안 쿨다운 대기...")
-                time.sleep(wait_sec)
+                time.sleep(20)
             else:
                 time.sleep(4)
 
-    return f"{date_str} {dist}m({pace}) 세션입니다. 페이스 흐름을 안정적으로 조절하며 완주한 기록입니다."
+    return f"{date_str} 세션입니다. 안정적인 페이스 배분으로 운동을 완주했습니다."
 
-def extract_swim_laps(client, act_id, total_dur, total_dist, avg_swolf):
+def parse_swim_laps(client, act_id, dur, dist, avg_swolf):
     laps_data = []
     try:
         splits = client.get_activity_splits(act_id)
         raw_laps = splits.get("lapSplits", []) or splits.get("intervalSplits", [])
-        valid_laps = [(idx + 1, l) for idx, l in enumerate(raw_laps) if l.get("distance", 0) > 0]
-        
-        total_count = len(valid_laps)
-        if total_count > 0:
-            if total_count <= 6:
-                selected_laps = valid_laps
-            else:
-                step = (total_count - 1) / 4
-                sample_indices = sorted(list({round(i * step) for i in range(5)} | {total_count - 1}))
-                selected_laps = [valid_laps[i] for i in sample_indices]
-
-            for lap_num, lap in selected_laps:
+        valid_laps = [(i + 1, l) for i, l in enumerate(raw_laps) if l.get("distance", 0) > 0]
+        if valid_laps:
+            step = max(1, len(valid_laps) // 5)
+            selected = valid_laps[::step][:5]
+            for lap_num, lap in selected:
                 ldist = lap.get("distance", 0)
                 ldur = lap.get("duration", 0)
-                lswolf = round(lap.get("averageSwolf", 0)) if lap.get("averageSwolf") else avg_swolf
                 p_sec = int(ldur / (ldist / 100)) if ldist > 0 else 0
                 p_str = f"{p_sec // 60}'{p_sec % 60:02d}\"" if p_sec else "-"
-                pct = max(40, min(95, int(100 - (p_sec - 70) * 0.4))) if p_sec else 75
-                
                 laps_data.append({
                     "lap": f"{lap_num}랩",
                     "pace": p_str,
-                    "pct": pct,
-                    "swolf": lswolf or "-"
+                    "swolf": round(lap.get("averageSwolf", 0)) or avg_swolf or "-"
                 })
     except Exception:
         pass
-
-    if not laps_data and total_dist > 0:
-        base_pace_sec = int(total_dur / (total_dist / 100)) if total_dist else 120
-        phases = [("출발", 0.96), ("전반", 0.99), ("중반", 1.02), ("후반", 1.05), ("마무리", 1.01)]
-        for label, factor in phases:
-            p_sec = int(base_pace_sec * factor)
-            p_str = f"{p_sec // 60}'{p_sec % 60:02d}\""
-            pct = max(45, min(92, int(90 * (1 / factor))))
-            laps_data.append({
-                "lap": label,
-                "pace": p_str,
-                "pct": pct,
-                "swolf": avg_swolf or 38
-            })
-
     return laps_data
 
-def process_activity(client, activity):
-    act_id = activity.get("activityId")
-    act_type = activity.get("activityType", {}).get("typeKey", "").lower()
-    start_str = activity.get("startTimeLocal", "")
-    date_str = start_str.split(" ")[0] if start_str else datetime.now().strftime("%Y-%m-%d")
-    title = activity.get("activityName", "운동")
-    loc_name = activity.get("locationName", "")
-
-    laps_data = []
-    lap_summary_text = "단일 세션 페이스"
-
-    if "swim" in act_type or "pool" in act_type:
-        sport, icon = "swim", "🏊"
-        dist = round(activity.get("distance", 0))
-        dur = activity.get("duration", 0)
-        pace = f"{int(dur / (dist / 100)) // 60}'{int(dur / (dist / 100)) % 60:02d}\"" if dist > 0 else "-"
-        swolf = round(activity.get("averageSwolf", 0))
-
-        metrics = [
-            {"label": "총 거리", "value": f"{dist:,}m"},
-            {"label": "평균 페이스", "value": f"{pace}/100m"},
-            {"label": "평균 SWOLF", "value": str(swolf) if swolf else "-"}
-        ]
-        summary = f"거리 {dist}m, 페이스 {pace}/100m, SWOLF {swolf}"
-        
-        laps_data = extract_swim_laps(client, act_id, dur, dist, swolf)
-        if laps_data:
-            lap_summary_text = ", ".join([f"{l['lap']}: {l['pace']}(SWOLF {l['swolf']})" for l in laps_data])
-
-        feedback1 = generate_ai_analysis(sport, title, summary, lap_summary_text, dist, pace, date_str)
-
-    elif "div" in act_type or "apnea" in act_type:
-        sport, icon = "freediving", "🤿"
-        depth = activity.get("maxDepth", 0)
-        dur = int(activity.get("duration", 0))
-        metrics = [
-            {"label": "최대 수심", "value": f"{depth:.1f}m" if depth else "-"},
-            {"label": "세션 시간", "value": f"{dur // 60}분 {dur % 60}초"},
-            {"label": "포인트", "value": loc_name or "다이빙 풀"}
-        ]
-        summary = f"수심 {depth}m, 시간 {dur // 60}분"
-        feedback1 = generate_ai_analysis(sport, title, summary, "프리다이빙 세션", 0, "-", date_str)
-
-    elif "golf" in act_type:
-        sport, icon = "golf", "⛳"
-        score = activity.get("score", "-")
-        metrics = [
-            {"label": "골프장", "value": loc_name or title},
-            {"label": "스코어", "value": f"{score}타" if score != "-" else "완주"},
-            {"label": "시간", "value": f"{int(activity.get('duration', 0) // 60)}분"}
-        ]
-        summary = f"골프장 {loc_name or title}, 스코어 {score}"
-        feedback1 = generate_ai_analysis(sport, title, summary, "18홀 라운딩", 0, "-", date_str)
-    else:
-        return None
-
-    # 세션 간 넉넉한 딜레이 (분당 쿼터 방어)
-    time.sleep(6)
-
-    return {
-        "id": str(act_id),
-        "type": sport,
-        "title": title,
-        "date": date_str,
-        "location": loc_name,
-        "icon": icon,
-        "metrics": metrics,
-        "laps": laps_data,
-        "feedback1": feedback1,
-        "userNote": "",
-        "feedback2": ""
-    }
-
 def main():
+    if not db:
+        print("Firestore DB가 연결되지 않아 작업을 중단합니다.")
+        return
+
     client = get_garmin_client()
-    # 쿼터 보호를 위해 최근 8개 세션만 집중 처리
-    raw_list = client.get_activities(0, 8)
+    raw_activities = client.get_activities(0, 10)  # 최근 10개 세션 수집
 
-    data = []
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r", encoding="utf-8") as f:
-            try:
-                data = json.load(f)
-            except Exception:
-                data = []
+    # 1. 날짜(YYYY-MM-DD)별로 세션 그룹화
+    grouped = {}
+    for act in raw_activities:
+        start_str = act.get("startTimeLocal", "")
+        date_str = start_str.split(" ")[0] if start_str else datetime.now().strftime("%Y-%m-%d")
+        if date_str not in grouped:
+            grouped[date_str] = []
+        grouped[date_str].append(act)
 
-    existing_ids = {x["id"] for x in data}
-    new_items = []
+    # 2. 날짜별로 Firestore 확인 및 갱신
+    for date_str, acts in grouped.items():
+        doc_ref = db.collection("activities").document(date_str)
+        doc = doc_ref.get()
 
-    for act in raw_list:
-        if str(act.get("activityId")) not in existing_ids:
-            processed = process_activity(client, act)
-            if processed:
-                new_items.append(processed)
+        existing_data = doc.to_dict() if doc.exists else None
+        existing_session_ids = set()
 
-    if new_items:
-        data = new_items + data
-        with open(DATA_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        print(f"새 운동 {len(new_items)}건 처리 완료")
-    else:
-        print("동기화할 새 운동이 없습니다.")
+        if existing_data:
+            existing_session_ids = {str(s.get("id")) for s in existing_data.get("sessions", [])}
+
+        # 새 세션 선별
+        new_sessions = []
+        for act in acts:
+            act_id = str(act.get("activityId"))
+            if act_id in existing_session_ids:
+                continue
+
+            act_type = act.get("activityType", {}).get("typeKey", "").lower()
+            title = act.get("activityName", "운동")
+            loc_name = act.get("locationName", "")
+            dur = act.get("duration", 0)
+
+            if "swim" in act_type or "pool" in act_type:
+                sport, icon = "swim", "🏊"
+                dist = round(act.get("distance", 0))
+                # 가민 순수 영법 속도 우선 계산 (가민 averageSpeed는 m/s)
+                avg_speed = act.get("averageSpeed", 0)
+                if avg_speed > 0:
+                    p_sec = int(100 / avg_speed)
+                    pace = f"{p_sec // 60}'{p_sec % 60:02d}\""
+                else:
+                    pace = f"{int(dur / (dist / 100)) // 60}'{int(dur / (dist / 100)) % 60:02d}\"" if dist > 0 else "-"
+                
+                swolf = round(act.get("averageSwolf", 0))
+                laps = parse_swim_laps(client, act_id, dur, dist, swolf)
+                new_sessions.append({
+                    "id": act_id,
+                    "sport": sport,
+                    "icon": icon,
+                    "title": title,
+                    "location": loc_name,
+                    "distance": dist,
+                    "pace": pace,
+                    "swolf": swolf,
+                    "duration": dur,
+                    "laps": laps
+                })
+            elif "div" in act_type or "apnea" in act_type:
+                new_sessions.append({
+                    "id": act_id,
+                    "sport": "freediving",
+                    "icon": "🤿",
+                    "title": title,
+                    "location": loc_name,
+                    "maxDepth": act.get("maxDepth", 0),
+                    "duration": dur,
+                    "laps": []
+                })
+            elif "golf" in act_type:
+                new_sessions.append({
+                    "id": act_id,
+                    "sport": "golf",
+                    "icon": "⛳",
+                    "title": title,
+                    "location": loc_name,
+                    "score": act.get("score", "-"),
+                    "duration": dur,
+                    "laps": []
+                })
+
+        # 새로 추가할 세션이 없다면 통과
+        if not new_sessions:
+            print(f"[{date_str}] 최신 상태입니다. (추가할 새 세션 없음)")
+            continue
+
+        # 세션 병합
+        all_sessions = (existing_data.get("sessions", []) if existing_data else []) + new_sessions
+        
+        # 총 거리 합산
+        total_dist = sum(s.get("distance", 0) for s in all_sessions)
+
+        # AI 피드백 생성: 이미 feedback1이 있고 세션 변화가 크지 않으면 유지, 없으면 생성
+        feedback1 = existing_data.get("feedback1") if existing_data and existing_data.get("feedback1") else ""
+        if not feedback1:
+            summary_lines = []
+            for s in all_sessions:
+                if s.get("sport") == "swim":
+                    summary_lines.append(f"- 수영: {s.get('distance')}m, 페이스 {s.get('pace')}/100m, SWOLF {s.get('swolf')}")
+                elif s.get("sport") == "freediving":
+                    summary_lines.append(f"- 프리다이빙: 수심 {s.get('maxDepth')}m, 시간 {s.get('duration')//60}분")
+                else:
+                    summary_lines.append(f"- {s.get('sport')}: {s.get('title')}")
+            
+            feedback1 = generate_ai_analysis(date_str, "\n".join(summary_lines))
+            time.sleep(5)  # 쿼터 보호
+
+        # Firestore 업데이트 (유저 일기 userNote 보존)
+        doc_payload = {
+            "date": date_str,
+            "sessions": all_sessions,
+            "totalDistance": total_dist,
+            "feedback1": feedback1,
+            "userNote": existing_data.get("userNote", "") if existing_data else "",
+            "feedback2": existing_data.get("feedback2", "") if existing_data else "",
+            "updatedAt": firestore.SERVER_TIMESTAMP
+        }
+
+        doc_ref.set(doc_payload, merge=True)
+        print(f"[{date_str}] Firestore 저장 완료! (총 {len(all_sessions)}개 세션)")
 
 if __name__ == "__main__":
     main()
