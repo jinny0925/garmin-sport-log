@@ -1,380 +1,180 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <link rel="manifest" href="manifest.json" />
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Garmin Sport Log & AI Coach</title>
-
-  <!-- 모바일 전체 화면 앱(PWA) 설정 -->
-  <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="theme-color" content="#2563eb" />
-
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Sports Log & AI Coach</title>
   <style>
     :root {
-      --bg: #f8fafc;
-      --card: #ffffff;
-      --text: #0f172a;
-      --sub: #64748b;
-      --border: #e2e8f0;
-      --primary: #2563eb;
-      --accent: #0284c7;
-      --ai-green: #15803d;
-      --ai-green-bg: #f0fdf4;
-      --ai-purple: #6d28d9;
-      --ai-purple-bg: #faf5ff;
+      --bg: #0d1117;
+      --card-bg: #161b22;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --swim: #38bdf8;
+      --dive: #2dd4bf;
+      --golf: #4ade80;
+      --gold: #f59e0b;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body { background-color: var(--bg); color: var(--text); padding: 16px; }
-    .container { max-width: 500px; margin: 0 auto; display: none; } /* 잠금 해제 전 숨김 */
+    body { background-color: var(--bg); color: var(--text); padding: 16px; max-width: 600px; margin: 0 auto; line-height: 1.5; }
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+    header h1 { font-size: 1.25rem; font-weight: 700; color: #fff; }
+    
+    .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+    .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .date-badge { font-size: 0.95rem; font-weight: 700; color: #fff; }
+    .total-badge { font-size: 0.8rem; background: #21262d; padding: 2px 8px; border-radius: 12px; color: var(--accent); border: 1px solid var(--border); }
+    
+    .session-item { background: #0d1117; border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-bottom: 8px; }
+    .session-title { display: flex; justify-content: space-between; font-weight: 600; font-size: 0.9rem; margin-bottom: 6px; }
+    .session-metrics { display: flex; gap: 12px; font-size: 0.8rem; color: var(--text-muted); }
+    .session-metrics span strong { color: var(--text); font-weight: 600; }
+    
+    .laps-wrap { margin-top: 8px; border-top: 1px dashed var(--border); padding-top: 6px; font-size: 0.75rem; color: var(--text-muted); }
+    .lap-row { display: flex; justify-content: space-between; padding: 2px 0; }
+    
+    .ai-box { background: rgba(88, 166, 255, 0.08); border-left: 3px solid var(--accent); border-radius: 4px; padding: 10px; margin-top: 12px; font-size: 0.85rem; color: #e6edf3; white-space: pre-wrap; }
+    .ai-title { font-weight: 700; color: var(--accent); margin-bottom: 4px; font-size: 0.8rem; }
+    
+    .note-box { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px; }
+    .note-box label { display: block; font-size: 0.8rem; color: var(--gold); font-weight: 600; margin-bottom: 4px; }
+    .note-textarea { width: 100%; background: #0d1117; border: 1px solid var(--border); border-radius: 6px; color: #fff; padding: 8px; font-size: 0.85rem; resize: vertical; min-height: 50px; }
+    .save-btn { margin-top: 6px; background: #238636; color: #fff; border: none; padding: 6px 12px; border-radius: 6px; font-size: 0.8rem; cursor: pointer; float: right; }
+    .save-btn:active { background: #2ea043; }
+    .clearfix::after { content: ""; clear: both; display: table; }
 
-    /* 잠금 화면 스타일 */
-    #lockScreen {
-      position: fixed;
-      inset: 0;
-      background: var(--bg);
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      z-index: 999;
-      padding: 20px;
-    }
-    .lock-box {
-      background: var(--card);
-      padding: 30px 24px;
-      border-radius: 20px;
-      border: 1px solid var(--border);
-      box-shadow: 0 10px 25px rgba(0,0,0,0.05);
-      text-align: center;
-      width: 100%;
-      max-width: 320px;
-    }
-    .lock-icon { font-size: 36px; margin-bottom: 12px; }
-    .lock-title { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
-    .lock-desc { font-size: 12px; color: var(--sub); margin-bottom: 20px; }
-    .pin-input {
-      width: 100%;
-      text-align: center;
-      font-size: 24px;
-      letter-spacing: 12px;
-      padding: 10px;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      outline: none;
-      margin-bottom: 14px;
-    }
-    .pin-input:focus { border-color: var(--primary); }
-    .lock-btn {
-      width: 100%;
-      background: var(--primary);
-      color: #fff;
-      border: none;
-      padding: 12px;
-      border-radius: 10px;
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    .lock-error { color: #dc2626; font-size: 12px; margin-top: 10px; display: none; }
-
-    /* 헤더 & 필터 */
-    header { margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
-    .logo { font-size: 20px; font-weight: 800; }
-    .logo span { color: var(--primary); }
-    .badge { font-size: 11px; background: #e0e7ff; color: var(--primary); padding: 4px 8px; border-radius: 12px; font-weight: 700; }
-
-    .filter-bar { display: flex; gap: 6px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 2px; }
-    .filter-btn { border: 1px solid var(--border); background: var(--card); padding: 7px 12px; border-radius: 18px; font-size: 12px; font-weight: 600; color: var(--sub); cursor: pointer; white-space: nowrap; }
-    .filter-btn.active { background: var(--text); color: #fff; border-color: var(--text); }
-
-    /* 캘린더 */
-    .calendar-card { background: var(--card); border-radius: 16px; padding: 16px; border: 1px solid var(--border); box-shadow: 0 4px 14px rgba(0,0,0,0.03); }
-    .calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-weight: 700; font-size: 15px; }
-    .month-nav button { border: none; background: none; font-size: 16px; cursor: pointer; padding: 4px 8px; color: var(--sub); }
-    .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; }
-    .day-label { font-size: 11px; font-weight: 600; color: var(--sub); padding-bottom: 6px; }
-
-    .cell { 
-      height: 60px; 
-      border-radius: 8px; 
-      padding: 4px; 
-      display: flex; 
-      flex-direction: column; 
-      justify-content: space-between; 
-      align-items: center; 
-      background: #fff; 
-      cursor: pointer; 
-    }
-    .cell:hover, .cell:active { background: #f1f5f9; }
-    .cell.empty { background: none; cursor: default; }
-    .date-num { font-size: 11px; color: var(--sub); }
-    .icons-wrap { display: flex; gap: 2px; font-size: 13px; }
-
-    /* 상세 모달 */
-    .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); justify-content: center; align-items: flex-end; z-index: 100; }
-    .modal-backdrop.open { display: flex; }
-    .modal-content { background: #fff; width: 100%; max-width: 500px; border-radius: 20px 20px 0 0; padding: 20px; max-height: 88vh; overflow-y: auto; }
-    .modal-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
-    .modal-close { border: none; background: none; font-size: 24px; color: var(--sub); cursor: pointer; }
-
-    .metrics-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 14px; }
-    .metric-box { background: #f8fafc; padding: 10px 4px; border-radius: 10px; text-align: center; border: 1px solid var(--border); }
-    .metric-title { font-size: 10px; color: var(--sub); margin-bottom: 2px; }
-    .metric-val { font-size: 13px; font-weight: 700; color: var(--text); }
-
-    /* 랩 막대 차트 */
-    .section-title { font-size: 12px; font-weight: 700; color: var(--sub); margin: 14px 0 8px; display: flex; justify-content: space-between; }
-    .lap-chart { background: #f8fafc; border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-bottom: 14px; }
-    .lap-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 12px; }
-    .lap-row:last-child { margin-bottom: 0; }
-    .lap-name { width: 44px; font-weight: 700; color: var(--text); font-size: 11px; }
-    .bar-bg { flex: 1; height: 18px; background: #e2e8f0; border-radius: 9px; overflow: hidden; display: flex; align-items: center; }
-    .bar-fill { height: 100%; background: #0284c7 !important; border-radius: 9px; min-width: 20px; }
-    .lap-val { width: 85px; text-align: right; font-weight: 600; font-size: 11px; color: var(--text); }
-
-    /* AI 분석 1 */
-    .ai-card-1 { background: var(--ai-green-bg); border: 1px solid #bbf7d0; border-radius: 12px; padding: 14px; margin-bottom: 14px; }
-    .ai-title-1 { font-size: 12px; font-weight: 700; color: var(--ai-green); margin-bottom: 6px; display: flex; align-items: center; gap: 4px; }
-    .ai-text-1 { font-size: 12px; color: #14532d; line-height: 1.55; white-space: pre-line; }
-
-    /* 일기 작성 */
-    .journal-box { background: #f8fafc; border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-bottom: 14px; }
-    .journal-input { width: 100%; height: 60px; border: 1px solid var(--border); border-radius: 8px; padding: 8px; font-size: 12px; resize: none; margin-top: 6px; outline: none; }
-    .journal-btn { width: 100%; background: var(--primary); color: #fff; border: none; padding: 9px; border-radius: 8px; font-size: 12px; font-weight: 600; margin-top: 6px; cursor: pointer; }
-
-    /* AI 분석 2 */
-    .ai-card-2 { background: var(--ai-purple-bg); border: 1px solid #e9d5ff; border-radius: 12px; padding: 14px; }
-    .ai-title-2 { font-size: 12px; font-weight: 700; color: var(--ai-purple); margin-bottom: 6px; display: flex; align-items: center; gap: 4px; }
-    .ai-text-2 { font-size: 12px; color: #4c1d95; line-height: 1.55; white-space: pre-line; }
+    #loading { text-align: center; padding: 40px; color: var(--text-muted); font-size: 0.9rem; }
   </style>
+
+  <!-- Firebase Modular SDK -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getFirestore, collection, onSnapshot, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    // 본인의 Firebase Console 정보로 직접 교체해주세요
+    const firebaseConfig = {
+      apiKey: "AIzaSyAnU1E1qhqxIzcyNaO64H_PR9r_9CrnRxQ",
+      authDomain: "garmin-sport-log.firebaseapp.com",
+      projectId: "garmin-sport-log",
+      storageBucket: "garmin-sport-log.firebasestorage.app",
+      messagingSenderId: "836183510846",
+      appId: "1:836183510846:web:b18cc66f12499f287ba66f"
+    };
+
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const logContainer = document.getElementById("log-list");
+    const loadingEl = document.getElementById("loading");
+
+    // Firestore activities 컬렉션 실시간 구독
+    onSnapshot(collection(db, "activities"), (snapshot) => {
+      loadingEl.style.display = "none";
+      logContainer.innerHTML = "";
+
+      const logs = [];
+      snapshot.forEach((docSnap) => {
+        logs.push(docSnap.data());
+      });
+
+      // 날짜 최신순 정렬
+      logs.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+
+      if (logs.length === 0) {
+        logContainer.innerHTML = '<div style="text-align:center; padding:40px; color:#8b949e;">아직 저장된 운동 기록이 없습니다.</div>';
+        return;
+      }
+
+      logs.forEach((log) => {
+        const card = document.createElement("div");
+        card.className = "card";
+
+        const sessions = log.sessions || [];
+        const totalDist = log.totalDistance || sessions.reduce((acc, cur) => acc + (cur.distance || 0), 0);
+
+        let sessionsHtml = "";
+        sessions.forEach((s) => {
+          let metricStr = "";
+          if (s.sport === "swim") {
+            metricStr = `<span>거리: <strong>${s.distance ? s.distance.toLocaleString() : 0}m</strong></span>
+                         <span>페이스: <strong>${s.pace || "-"}</strong></span>
+                         <span>SWOLF: <strong>${s.swolf || "-"}</strong></span>`;
+          } else if (s.sport === "freediving") {
+            metricStr = `<span>최대 수심: <strong>${s.maxDepth || 0}m</strong></span>
+                         <span>시간: <strong>${Math.floor((s.duration || 0)/60)}분</strong></span>`;
+          } else {
+            metricStr = `<span>기록: <strong>${s.score || "완주"}</strong></span>`;
+          }
+
+          let lapsHtml = "";
+          if (s.laps && s.laps.length > 0) {
+            lapsHtml = '<div class="laps-wrap">' + s.laps.map(l => 
+              `<div class="lap-row"><span>${l.lap}</span><span>${l.pace} (SWOLF ${l.swolf})</span></div>`
+            ).join("") + '</div>';
+          }
+
+          sessionsHtml += `
+            <div class="session-item">
+              <div class="session-title">
+                <span>${s.icon || "🏅"} ${s.title || "운동 세션"}</span>
+                <span style="font-size:0.75rem; color:#8b949e;">${s.location || ""}</span>
+              </div>
+              <div class="session-metrics">${metricStr}</div>
+              ${lapsHtml}
+            </div>
+          `;
+        });
+
+        card.innerHTML = `
+          <div class="card-header">
+            <span class="date-badge">${log.date}</span>
+            ${totalDist > 0 ? `<span class="total-badge">일일 합산: ${totalDist.toLocaleString()}m</span>` : ''}
+          </div>
+          ${sessionsHtml}
+          ${log.feedback1 ? `
+            <div class="ai-box">
+              <div class="ai-title">🤖 AI 코칭 리포트</div>
+              ${log.feedback1}
+            </div>
+          ` : ''}
+          <div class="note-box clearfix">
+            <label>📝 운동 일기 & 메모</label>
+            <textarea class="note-textarea" id="note-${log.date}" placeholder="오늘 컨디션, 수모/수경 착용감 등을 기록해보세요.">${log.userNote || ""}</textarea>
+            <button class="save-btn" data-date="${log.date}">저장하기</button>
+          </div>
+        `;
+
+        logContainer.appendChild(card);
+      });
+
+      // 메모 저장 버튼 이벤트 리스너 등록
+      document.querySelectorAll(".save-btn").forEach((btn) => {
+        btn.addEventListener("click", async (e) => {
+          const targetDate = e.target.getAttribute("data-date");
+          const noteText = document.getElementById(`note-${targetDate}`).value;
+          e.target.innerText = "저장 중...";
+          try {
+            const docRef = doc(db, "activities", targetDate);
+            await updateDoc(docRef, { userNote: noteText });
+            e.target.innerText = "완료!";
+            setTimeout(() => { e.target.innerText = "저장하기"; }, 1500);
+          } catch (err) {
+            alert("저장 실패: " + err.message);
+            e.target.innerText = "저장하기";
+          }
+        });
+      });
+    });
+  </script>
 </head>
 <body>
-
-<!-- 🔒 잠금 화면 UI -->
-<div id="lockScreen">
-  <div class="lock-box">
-    <div class="lock-icon">🔒</div>
-    <div class="lock-title">보안 잠금</div>
-    <div class="lock-desc">운동 일지를 보려면 4자리 PIN을 입력하세요.</div>
-    <input type="password" id="pinInput" class="pin-input" maxlength="4" placeholder="••••" autofocus onkeypress="handlePinKey(event)" />
-    <button class="lock-btn" onclick="checkPin()">확인</button>
-    <div class="lock-error" id="lockError">비밀번호가 올바르지 않습니다.</div>
-  </div>
-</div>
-
-<div class="container" id="mainContainer">
   <header>
-    <div>
-      <div class="logo">Daily<span>.</span>Log</div>
-      <div style="font-size:12px;color:var(--sub)">가민 랩 데이터 & 1:1 AI 수영 코치</div>
-    </div>
-    <div class="badge" onclick="lockApp()" style="cursor:pointer;">🔒 잠그기</div>
+    <h1>Sports Log & AI Coach</h1>
   </header>
-
-  <div class="filter-bar">
-    <button class="filter-btn active" onclick="filterLogs('all',this)">✨ 전체</button>
-    <button class="filter-btn" onclick="filterLogs('swim',this)">🏊 수영</button>
-    <button class="filter-btn" onclick="filterLogs('freediving',this)">🤿 프리다이빙</button>
-    <button class="filter-btn" onclick="filterLogs('golf',this)">⛳ 골프</button>
-  </div>
-
-  <div class="calendar-card">
-    <div class="calendar-header">
-      <span id="calendarTitle"></span>
-      <div class="month-nav">
-        <button onclick="prevMonth()">&lt;</button>
-        <button onclick="nextMonth()">&gt;</button>
-      </div>
-    </div>
-    <div class="grid" id="dayLabels"></div>
-    <div class="grid" id="calendarGrid"></div>
-  </div>
-</div>
-
-<!-- 상세 모달 -->
-<div class="modal-backdrop" id="modalBackdrop" onclick="closeModal(event)">
-  <div class="modal-content" onclick="event.stopPropagation()">
-    <div class="modal-header">
-      <div>
-        <h3 id="modalTitle" style="font-size:16px;font-weight:700"></h3>
-        <span id="modalDate" style="font-size:11px;color:var(--sub)"></span>
-      </div>
-      <button class="modal-close" onclick="closeModalDirect()">&times;</button>
-    </div>
-
-    <div class="metrics-grid" id="metricsContainer"></div>
-
-    <div id="lapSection">
-      <div class="section-title">
-        <span>구간별 페이스 & SWOLF 분석</span>
-        <span style="font-size:10px;font-weight:normal;color:var(--sub)">페이스(막대) / SWOLF</span>
-      </div>
-      <div class="lap-chart" id="lapChartContainer"></div>
-    </div>
-
-    <div class="ai-card-1">
-      <div class="ai-title-1">📊 AI 분석 1: 가민 세션 & 랩 데이터 리포트</div>
-      <div class="ai-text-1" id="feedbackText1"></div>
-    </div>
-
-    <div class="journal-box">
-      <div style="font-size:11px;font-weight:700;color:var(--text)">✍️ 오늘 수영 일기 / 코치에게 질문</div>
-      <textarea class="journal-input" id="journalInput" placeholder="오늘 수영할 때 느낌이나 궁금한 점을 적어보세요."></textarea>
-      <button class="journal-btn" onclick="askAiCoach()">질문 및 피드백 받기</button>
-    </div>
-
-    <div class="ai-card-2" id="qnaBox">
-      <div class="ai-title-2">💡 AI 분석 2: 1:1 맞춤 일기 코칭 처방</div>
-      <div class="ai-text-2" id="feedbackText2">작성하신 질문이나 일기가 없습니다. 위 칸에 적고 피드백을 받아보세요!</div>
-    </div>
-  </div>
-</div>
-
-<script>
-  // 🔑 비밀번호 설정 (원하는 4자리로 변경 가능)
-  const APP_PIN = "0212";
-
-  function checkPin() {
-    const input = document.getElementById('pinInput').value;
-    const error = document.getElementById('lockError');
-    if (input === APP_PIN) {
-      localStorage.setItem('sportLogAuth', 'true');
-      unlockScreen();
-    } else {
-      error.style.display = 'block';
-      document.getElementById('pinInput').value = '';
-    }
-  }
-
-  function handlePinKey(e) {
-    if (e.key === 'Enter') checkPin();
-  }
-
-  function unlockScreen() {
-    document.getElementById('lockScreen').style.display = 'none';
-    document.getElementById('mainContainer').style.display = 'block';
-    initCalendar();
-  }
-
-  function lockApp() {
-    localStorage.removeItem('sportLogAuth');
-    location.reload();
-  }
-
-  // 초기 실행 시 인증 확인
-  window.onload = () => {
-    if (localStorage.getItem('sportLogAuth') === 'true') {
-      unlockScreen();
-    }
-  };
-
-  let activityLogs = [];
-  let currentDate = new Date();
-  let currentFilter = 'all';
-  let currentLog = null;
-  const dayNames = ['일','월','화','수','목','금','토'];
-
-  function initCalendar() {
-    document.getElementById('dayLabels').innerHTML = dayNames.map(d => `<div class="day-label">${d}</div>`).join('');
-    fetch('activities.json?t=' + new Date().getTime())
-      .then(res => res.json())
-      .then(data => { if(data && data.length) activityLogs = data; renderCalendar(); })
-      .catch(() => { renderCalendar(); });
-  }
-
-  function renderCalendar() {
-    const y = currentDate.getFullYear(), m = currentDate.getMonth();
-    document.getElementById('calendarTitle').innerText = `${y}년 ${m + 1}월`;
-    const f = new Date(y, m, 1).getDay(), l = new Date(y, m + 1, 0).getDate();
-    const g = document.getElementById('calendarGrid');
-    g.innerHTML = '';
-    for (let i = 0; i < f; i++) g.innerHTML += '<div class="cell empty"></div>';
-    for (let d = 1; d <= l; d++) {
-      const dStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-      const logs = activityLogs.filter(item => item.date === dStr && (currentFilter === 'all' || item.type === currentFilter));
-      const cell = document.createElement('div');
-      cell.className = 'cell';
-      cell.innerHTML = `<span class="date-num">${d}</span><div class="icons-wrap">${logs.map(x => x.icon).join('')}</div>`;
-      if (logs.length > 0) cell.onclick = () => openModal(logs[0]);
-      g.appendChild(cell);
-    }
-  }
-
-  function filterLogs(t, b) {
-    currentFilter = t;
-    document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
-    b.classList.add('active');
-    renderCalendar();
-  }
-
-  function prevMonth() { currentDate.setMonth(currentDate.getMonth() - 1); renderCalendar(); }
-  function nextMonth() { currentDate.setMonth(currentDate.getMonth() + 1); renderCalendar(); }
-
-  function openModal(log) {
-    currentLog = log;
-    document.getElementById('modalTitle').innerText = `${log.icon} ${log.title}`;
-    document.getElementById('modalDate').innerText = `${log.date} ${log.location ? '· ' + log.location : ''}`;
-    
-    document.getElementById('metricsContainer').innerHTML = log.metrics.map(m => `
-      <div class="metric-box">
-        <div class="metric-title">${m.label}</div>
-        <div class="metric-val">${m.value}</div>
-      </div>
-    `).join('');
-
-    const lapSec = document.getElementById('lapSection');
-    const chartBox = document.getElementById('lapChartContainer');
-    
-    let lapsToRender = log.laps;
-    if ((!lapsToRender || lapsToRender.length === 0) && log.type === 'swim') {
-      lapsToRender = [
-        { lap: '출발', pace: "1'42\"", pct: 85, swolf: 36 },
-        { lap: '전반', pace: "1'45\"", pct: 80, swolf: 37 },
-        { lap: '중반', pace: "1'49\"", pct: 72, swolf: 39 },
-        { lap: '후반', pace: "1'52\"", pct: 65, swolf: 41 }
-      ];
-    }
-
-    if (lapsToRender && lapsToRender.length > 0) {
-      lapSec.style.display = 'block';
-      chartBox.innerHTML = lapsToRender.map(l => `
-        <div class="lap-row">
-          <div class="lap-name">${l.lap}</div>
-          <div class="bar-bg"><div class="bar-fill" style="width:${l.pct}%;"></div></div>
-          <div class="lap-val">${l.pace} / S:${l.swolf}</div>
-        </div>
-      `).join('');
-    } else {
-      lapSec.style.display = 'none';
-    }
-
-    document.getElementById('feedbackText1').innerText = log.feedback1 || log.feedback || "세션 분석을 불러오는 중입니다.";
-    document.getElementById('journalInput').value = log.userNote || "";
-    document.getElementById('feedbackText2').innerText = log.feedback2 || "작성하신 질문이나 일기가 없습니다. 위 칸에 적고 피드백을 받아보세요!";
-    
-    document.getElementById('modalBackdrop').classList.add('open');
-  }
-
-  function askAiCoach() {
-    const text = document.getElementById('journalInput').value.trim();
-    if (!text) return alert("일기나 궁금한 점을 입력해주세요!");
-    
-    const ansBox = document.getElementById('feedbackText2');
-    ansBox.innerText = "코치가 일기를 분석하여 답변을 작성하고 있습니다... ⏳";
-    
-    setTimeout(() => {
-      ansBox.innerText = `[1:1 맞춤 코칭 처방]\n"${text}"에 대해:\n몸이 지칠 때는 팔을 서둘러 젓지 말고, 스트로크를 한 번 할 때마다 몸을 앞으로 1~2초 길게 미끄러뜨리는 데 집중해 보세요. 호흡할 때도 턱을 당겨 옆만 살짝 바라보면 어깨 부담이 훨씬 줄어듭니다!`;
-      if(currentLog) {
-        currentLog.userNote = text;
-        currentLog.feedback2 = ansBox.innerText;
-      }
-    }, 800);
-  }
-
-  function closeModal(e) { if (e.target.id === 'modalBackdrop') closeModalDirect(); }
-  function closeModalDirect() { document.getElementById('modalBackdrop').classList.remove('open'); }
-</script>
+  <div id="loading">기록을 동기화하는 중입니다...</div>
+  <div id="log-list"></div>
 </body>
 </html>
