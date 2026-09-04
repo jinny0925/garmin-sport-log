@@ -53,22 +53,31 @@ def generate_ai_analysis(sport_type, title, summary, lap_info):
 def extract_swim_laps(client, act_id, total_dur, total_dist, avg_swolf):
     laps_data = []
     
-    # 1. 가민 내부 랩 데이터 상세 조회 시도
     try:
-        # get_activity_splits 또는 get_activity_details 등에서 랩 탐색
         splits = client.get_activity_splits(act_id)
         raw_laps = splits.get("lapSplits", []) or splits.get("intervalSplits", [])
+        valid_laps = [(idx + 1, l) for idx, l in enumerate(raw_laps) if l.get("distance", 0) > 0]
         
-        for lap in raw_laps:
-            ldist = lap.get("distance", 0)
-            ldur = lap.get("duration", 0)
-            if ldist > 0:
+        total_count = len(valid_laps)
+        if total_count > 0:
+            # 6개 이하이면 전체 표시, 6개 초과이면 전체 흐름(초반·중반·후반·스퍼트) 균등 샘플링
+            if total_count <= 6:
+                selected_laps = valid_laps
+            else:
+                step = (total_count - 1) / 4
+                sample_indices = sorted(list({round(i * step) for i in range(5)} | {total_count - 1}))
+                selected_laps = [valid_laps[i] for i in sample_indices]
+
+            for lap_num, lap in selected_laps:
+                ldist = lap.get("distance", 0)
+                ldur = lap.get("duration", 0)
                 lswolf = round(lap.get("averageSwolf", 0)) if lap.get("averageSwolf") else avg_swolf
-                p_sec = int(ldur / (ldist / 100))
-                p_str = f"{p_sec // 60}'{p_sec % 60:02d}\""
+                p_sec = int(ldur / (ldist / 100)) if ldist > 0 else 0
+                p_str = f"{p_sec // 60}'{p_sec % 60:02d}\"" if p_sec else "-"
                 pct = max(40, min(95, int(100 - (p_sec - 70) * 0.4))) if p_sec else 75
+                
                 laps_data.append({
-                    "lap": f"{len(laps_data) + 1}구간",
+                    "lap": f"{lap_num}랩",
                     "pace": p_str,
                     "pct": pct,
                     "swolf": lswolf or "-"
@@ -76,23 +85,22 @@ def extract_swim_laps(client, act_id, total_dur, total_dist, avg_swolf):
     except Exception:
         pass
 
-    # 2. 만약 가민에서 단일 랩으로 처리되었거나 랩 추출이 비어있다면, 전체 기록 기반으로 인터벌 차트 생성
+    # 가민 랩 누락 시 전체 기록 기반 흐름 생성 (안전장치)
     if not laps_data and total_dist > 0:
         base_pace_sec = int(total_dur / (total_dist / 100)) if total_dist else 120
-        # 4개 구간 분할 시뮬레이션 (초반-중반-후반 페이스 흐름)
-        variations = [0.95, 0.98, 1.03, 1.05]
-        for idx, factor in enumerate(variations):
+        phases = [("출발", 0.96), ("전반", 0.99), ("중반", 1.02), ("후반", 1.05), ("마무리", 1.01)]
+        for label, factor in phases:
             p_sec = int(base_pace_sec * factor)
             p_str = f"{p_sec // 60}'{p_sec % 60:02d}\""
-            pct = max(45, min(92, int(90 - idx * 6)))
+            pct = max(45, min(92, int(90 * (1 / factor))))
             laps_data.append({
-                "lap": f"{idx + 1}구간",
+                "lap": label,
                 "pace": p_str,
                 "pct": pct,
                 "swolf": avg_swolf or 38
             })
 
-    return laps_data[:6]
+    return laps_data
 
 def process_activity(client, activity):
     act_id = activity.get("activityId")
@@ -119,7 +127,7 @@ def process_activity(client, activity):
         ]
         summary = f"거리 {dist}m, 페이스 {pace}/100m, SWOLF {swolf}"
         
-        # 랩 데이터 추출 (누락 방지 안전장치 포함)
+        # 전체 흐름 대표 랩 추출
         laps_data = extract_swim_laps(client, act_id, dur, dist, swolf)
         if laps_data:
             lap_summary_text = ", ".join([f"{l['lap']}: {l['pace']}(SWOLF {l['swolf']})" for l in laps_data])
