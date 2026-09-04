@@ -2,16 +2,21 @@ import os
 import json
 import time
 from datetime import datetime
-from garminconnect import Garmin
+from garminconnect import (
+    Garmin,
+    GarminConnectConnectionError,
+    GarminConnectTooManyRequestsError,
+    GarminConnectAuthenticationError
+)
 import google.generativeai as genai
 import firebase_admin
 from firebase_admin import credentials, firestore
 
-# 환경변수 로드
 GARMIN_EMAIL = os.environ.get("GARMIN_EMAIL")
 GARMIN_PASSWORD = os.environ.get("GARMIN_PASSWORD")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 FIREBASE_SERVICE_ACCOUNT = os.environ.get("FIREBASE_SERVICE_ACCOUNT")
+TOKEN_DIR = os.path.expanduser("~/.garminconnect")
 
 # Firebase Admin 초기화
 if FIREBASE_SERVICE_ACCOUNT:
@@ -25,7 +30,7 @@ if FIREBASE_SERVICE_ACCOUNT:
         print(f"Firestore 초기화 실패: {e}")
         db = None
 else:
-    print("경고: FIREBASE_SERVICE_ACCOUNT 시크릿이 없습니다.")
+    print("경고: FIREBASE_SERVICE_ACCOUNT 시크릿이 설정되지 않았습니다.")
     db = None
 
 # Gemini API 초기화
@@ -33,19 +38,36 @@ if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 
 def get_garmin_client():
-    client = Garmin(GARMIN_EMAIL, GARMIN_PASSWORD)
-    client.login()
-    return client
+    """세션 토큰 캐싱을 통한 가민 로그인 IP 차단 방어"""
+    try:
+        client = Garmin()
+        client.login(TOKEN_DIR)
+        print("기존 가민 로그인 세션 재사용 성공")
+        return client
+    except Exception:
+        try:
+            print("신규 가민 로그인 시도...")
+            client = Garmin(GARMIN_EMAIL, GARMIN_PASSWORD, is_cn=False)
+            client.login()
+            os.makedirs(TOKEN_DIR, exist_ok=True)
+            client.garth.dump(TOKEN_DIR)
+            print("신규 가민 로그인 성공 및 세션 저장 완료")
+            return client
+        except GarminConnectTooManyRequestsError:
+            print("치명적 오류: 가민 서버 IP 차단(429) 상태입니다.")
+            raise
+        except Exception as e:
+            print(f"가민 로그인 실패: {e}")
+            raise
 
 def generate_ai_analysis(date_str, sessions_summary):
-    """하루의 모든 세션을 통합하여 3문장 코칭 생성"""
     if not GEMINI_API_KEY:
         return f"{date_str} 세션 완주 기록입니다."
 
     prompt = f"""
     당신은 1:1 퍼스널 스포츠 코치입니다.
     성인 회원을 위한 전문적이고 담백한 어조(~했습니다, ~보세요)로 하루 운동 전체를 종합 분석해 3문장으로 작성하세요.
-    뻔한 템플릿 문장을 쓰지 말고, 제공된 기록 수치를 반드시 반영하세요.
+    뻔한 템플릿 문장을 쓰지 말고, 제공된 실제 운동 수치를 반드시 반영하세요.
 
     - 날짜: {date_str}
     - 당일 운동 세션 목록:
@@ -53,7 +75,7 @@ def generate_ai_analysis(date_str, sessions_summary):
 
     [3문장 필수 형식]
     1. 총평: {date_str}에 수행한 전체 운동량과 강도에 대한 객관적인 총평.
-    2. 데이터 분석: 구간 페이스나 운동별 특징, 체력 안배 상태 분석.
+    2. 데이터 분석: 구간 페이스나 운동별 세부 수치, 체력 안배 상태 분석.
     3. 실전 팁: 다음 훈련 때 의식할 구체적인 영법/자세 또는 회복 팁 1개.
     """
 
@@ -72,7 +94,7 @@ def generate_ai_analysis(date_str, sessions_summary):
             else:
                 time.sleep(4)
 
-    return f"{date_str} 세션입니다. 안정적인 페이스 배분으로 운동을 완주했습니다."
+    return f"{date_str} 세션입니다. 페이스 흐름을 안정적으로 조절하며 완주한 기록입니다."
 
 def parse_swim_laps(client, act_id, dur, dist, avg_swolf):
     laps_data = []
@@ -103,7 +125,7 @@ def main():
         return
 
     client = get_garmin_client()
-    raw_activities = client.get_activities(0, 10)  # 최근 10개 세션 수집
+    raw_activities = client.get_activities(0, 10)
 
     # 1. 날짜(YYYY-MM-DD)별로 세션 그룹화
     grouped = {}
@@ -114,7 +136,7 @@ def main():
             grouped[date_str] = []
         grouped[date_str].append(act)
 
-    # 2. 날짜별로 Firestore 확인 및 갱신
+    # 2. 날짜별 문서 확인 및 병합 업데이트
     for date_str, acts in grouped.items():
         doc_ref = db.collection("activities").document(date_str)
         doc = doc_ref.get()
@@ -125,7 +147,6 @@ def main():
         if existing_data:
             existing_session_ids = {str(s.get("id")) for s in existing_data.get("sessions", [])}
 
-        # 새 세션 선별
         new_sessions = []
         for act in acts:
             act_id = str(act.get("activityId"))
@@ -140,7 +161,6 @@ def main():
             if "swim" in act_type or "pool" in act_type:
                 sport, icon = "swim", "🏊"
                 dist = round(act.get("distance", 0))
-                # 가민 순수 영법 속도 우선 계산 (가민 averageSpeed는 m/s)
                 avg_speed = act.get("averageSpeed", 0)
                 if avg_speed > 0:
                     p_sec = int(100 / avg_speed)
@@ -185,18 +205,14 @@ def main():
                     "laps": []
                 })
 
-        # 새로 추가할 세션이 없다면 통과
         if not new_sessions:
             print(f"[{date_str}] 최신 상태입니다. (추가할 새 세션 없음)")
             continue
 
-        # 세션 병합
         all_sessions = (existing_data.get("sessions", []) if existing_data else []) + new_sessions
-        
-        # 총 거리 합산
         total_dist = sum(s.get("distance", 0) for s in all_sessions)
 
-        # AI 피드백 생성: 이미 feedback1이 있고 세션 변화가 크지 않으면 유지, 없으면 생성
+        # AI 피드백: 기존 피드백이 없으면 1회 종합 생성
         feedback1 = existing_data.get("feedback1") if existing_data and existing_data.get("feedback1") else ""
         if not feedback1:
             summary_lines = []
@@ -209,9 +225,8 @@ def main():
                     summary_lines.append(f"- {s.get('sport')}: {s.get('title')}")
             
             feedback1 = generate_ai_analysis(date_str, "\n".join(summary_lines))
-            time.sleep(5)  # 쿼터 보호
+            time.sleep(5)
 
-        # Firestore 업데이트 (유저 일기 userNote 보존)
         doc_payload = {
             "date": date_str,
             "sessions": all_sessions,
@@ -223,7 +238,7 @@ def main():
         }
 
         doc_ref.set(doc_payload, merge=True)
-        print(f"[{date_str}] Firestore 저장 완료! (총 {len(all_sessions)}개 세션)")
+        print(f"[{date_str}] Firestore 저장 완료! (세션 {len(all_sessions)}건)")
 
 if __name__ == "__main__":
     main()
