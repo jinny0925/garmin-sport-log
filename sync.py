@@ -43,7 +43,7 @@ def generate_ai_analysis(sport_type, title, summary, lap_info, dist, pace, date_
     3. 실전 팁: 다음 훈련 때 의식할 구체적인 영법/자세 팁 1개.
     """
 
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    model = genai.GenerativeModel("gemini-2.5-flash")
 
     for attempt in range(3):
         try:
