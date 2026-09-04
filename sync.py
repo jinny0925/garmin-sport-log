@@ -1,5 +1,6 @@
 import os
 import json
+import time
 from datetime import datetime
 from garminconnect import Garmin
 from google import genai
@@ -21,9 +22,9 @@ def generate_ai_analysis(sport_type, title, summary, lap_info):
     당신은 수영장 옆에서 회원을 격려해 주는 친절하고 다정한 '동네 수영 선생님'입니다.
     사용자의 운동 기록을 보고 다정한 구어체(~해요, ~해보세요, 이모지 활용)로 딱 3문장 코칭을 작성하세요.
 
-    [절대 금지 단어 및 태도 - 위반 금지]
-    - '심각한', '비효율성', '항력', '바디 포지션', '스컬링', 'SWOLF', '경제성', '기인합니다', '주력하십시오' 같은 학술 논문식/전문 용어 절대 사용 금지.
-    - 페이스가 4~8분대로 길게 찍힌 것은 수영 실력이 부족해서가 아니라, 레인 끝에서 서서 쉬거나 강습 설명을 들은 시간이 합산된 것입니다. 절대로 '느리다', '추진력이 부족하다'고 타박하지 마세요.
+    [절대 금지 단어 및 태도]
+    - '심각한', '비효율성', '항력', '바디 포지션', '스컬링', 'SWOLF', '경제성', '기인합니다', '주력하십시오' 같은 학술적/전문 용어 절대 금지.
+    - 페이스가 4~8분대로 나온 것은 수영 실력이 부족해서가 아니라, 레인 끝에서 서서 쉬거나 강습 설명을 들은 시간이 합산된 것입니다. 절대로 '느리다', '추진력이 부족하다'고 타박하지 마세요.
 
     [반드시 지켜야 할 3문장 구조]
     1. 완주 칭찬: 오늘도 물속에서 끝까지 세션을 마친 것을 밝게 칭찬하기.
@@ -35,11 +36,20 @@ def generate_ai_analysis(sport_type, title, summary, lap_info):
     - 기본 기록: {summary}
     - 구간 기록: {lap_info}
     """
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt
-    )
-    return response.text.strip()
+
+    # 503 일시 과부하 발생 시 최대 3번 재시도
+    for attempt in range(3):
+        try:
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt
+            )
+            return response.text.strip()
+        except Exception as e:
+            if attempt < 2:
+                time.sleep(3)  # 3초 대기 후 재시도
+                continue
+            return "오늘도 완주하느라 수고 많으셨어요! 👏 편안하게 물을 타며 감각을 익히기에 좋은 세션이었습니다. 다음 세션도 즐겁게 화이팅해 보세요!"
 
 def process_activity(client, activity):
     act_id = activity.get("activityId")
@@ -52,7 +62,6 @@ def process_activity(client, activity):
     laps_data = []
     lap_summary_text = "랩 세부 데이터 없음"
 
-    # 수영 종목 판별 (수영장 및 오픈워터 포괄)
     if "swim" in act_type or "pool" in act_type:
         sport, icon = "swim", "🏊"
         dist = round(activity.get("distance", 0))
@@ -67,7 +76,6 @@ def process_activity(client, activity):
         ]
         summary = f"거리 {dist}m, 평균 페이스 {pace}/100m, 평균 SWOLF {swolf}"
 
-        # 랩 데이터 가져오기
         try:
             splits = client.get_activity_splits(act_id)
             raw_laps = splits.get("lapSplits", [])
@@ -77,7 +85,6 @@ def process_activity(client, activity):
                 lap_swolf = round(lap.get("averageSwolf", 0))
                 lap_pace_sec = int(lap_dur / (lap_dist / 100)) if lap_dist > 0 else 0
                 lap_pace = f"{lap_pace_sec // 60}'{lap_pace_sec % 60:02d}\"" if lap_pace_sec else "-"
-                
                 pct = max(30, min(95, int(100 - (lap_pace_sec - 80) * 0.5))) if lap_pace_sec else 70
 
                 laps_data.append({
@@ -116,6 +123,7 @@ def process_activity(client, activity):
         return None
 
     feedback1 = generate_ai_analysis(sport, title, summary, lap_summary_text)
+    time.sleep(1)  # 연속 호출 과부하 방지 1초 간격
 
     return {
         "id": str(act_id),
@@ -133,7 +141,6 @@ def process_activity(client, activity):
 
 def main():
     client = get_garmin_client()
-    # 최근 20개 활동 조회
     raw_list = client.get_activities(0, 20)
 
     data = []
