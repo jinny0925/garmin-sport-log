@@ -16,12 +16,25 @@ def get_garmin_client():
 
 def generate_ai_analysis(sport_type, title, summary, lap_info):
     client = genai.Client(api_key=GEMINI_API_KEY)
+    
     prompt = f"""
-    당신은 엘리트 스포츠 전문 데이터 분석 코치입니다. 가민 운동 데이터와 구간별 랩 지표를 분석하여 핵심 원인 진단과 다음 세션 추천 드릴을 포함한 3문장 이내의 전문적인 리포트를 작성하세요.
-    - 종목: {sport_type}
-    - 세션명: {title}
-    - 주요 메트릭: {summary}
-    - 랩/구간 데이터: {lap_info}
+    당신은 친절하고 따뜻한 1:1 개인 스포츠 코치입니다.
+    전문 용어(SWOLF, 젖산 역치 등)나 복잡한 수치 대신, 일반인이 바로 이해할 수 있는 쉬운 일상 언어로 3문장 피드백을 작성하세요.
+
+    [작성 규칙]
+    1. 용어 풀어서 쓰기:
+       - SWOLF/스트로크 효율 -> '몸이 물 위로 쭉쭉 미끄러져 나간 정도 / 힘이 빠져 헛손질이 늘어난 느낌'
+       - 페이스 저하 -> '후반으로 갈수록 조금 지친 모습'
+       - 글라이딩/캐치 -> '앞으로 쭉 뻗어 미끄러지는 동작 / 손바닥으로 물을 잡는 동작'
+    2. 문장 구조 (딱 3문장):
+       - 1문장: 오늘 가장 잘한 점 칭찬
+       - 1문장: 아쉬운 부분이나 지친 원인을 몸 동작 관점에서 쉽게 짚기
+       - 1문장: 다음 운동 때 바로 써먹을 수 있는 쉬운 팁 1개
+
+    - 운동 종목: {sport_type}
+    - 활동명: {title}
+    - 기본 기록: {summary}
+    - 랩/구간 기록: {lap_info}
     """
     response = client.models.generate_content(
         model="gemini-2.5-flash",
