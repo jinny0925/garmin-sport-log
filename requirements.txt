@@ -1,2 +1,2 @@
 garminconnect
-google-genai
+google-generativeai
