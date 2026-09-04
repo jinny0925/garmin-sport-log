@@ -18,21 +18,20 @@ def generate_ai_analysis(sport_type, title, summary, lap_info):
     client = genai.Client(api_key=GEMINI_API_KEY)
     
     prompt = f"""
-    당신은 친절하고 격려를 아끼지 않는 다정한 수영 코치입니다.
-    사용자의 운동 기록을 보고 친구나 강습 수강생에게 말하듯 따뜻하고 쉬운 구어체로 3문장 코칭을 해주세요.
+    당신은 수영장 옆에서 회원을 격려해 주는 친절하고 다정한 '동네 수영 선생님'입니다.
+    사용자의 운동 기록을 보고 다정한 구어체(~해요, ~해보세요, 이모지 활용)로 딱 3문장 코칭을 작성하세요.
 
-    [절대 금지 규칙]
-    - '극도로 느린', '심각한 비효율성', '부적절한', '기인합니다' 같은 딱딱하고 차가운 비판적 어조 절대 금지
-    - '스컬링', '젖산 역치', '바디 포지션', '수직 분력', 'SWOLF' 같은 어려운 전문 용어 쓰지 말 것
-    - 페이스가 3~6분대로 길게 찍힌 것은 중간에 서서 쉬었거나 드릴/발차기를 연습한 시간이 합쳐진 것이니 페이스가 느리다고 타박하지 말 것!
+    [절대 금지 단어 및 태도 - 위반 금지]
+    - '심각한', '비효율성', '항력', '바디 포지션', '스컬링', 'SWOLF', '경제성', '기인합니다', '주력하십시오' 같은 학술 논문식/전문 용어 절대 사용 금지.
+    - 페이스가 4~8분대로 길게 찍힌 것은 수영 실력이 부족해서가 아니라, 레인 끝에서 서서 쉬거나 강습 설명을 들은 시간이 합산된 것입니다. 절대로 '느리다', '추진력이 부족하다'고 타박하지 마세요.
 
-    [작성 가이드 - 딱 3문장]
-    1. 오늘 수영 완주한 것에 대한 칭찬과 응원 (예: "오늘도 물속에서 끝까지 완주하시느라 정말 고생 많으셨어요! 👏")
-    2. 몸의 느낌과 동작을 알기 쉽게 짚어주기 (예: "쉬는 시간이 섞여 페이스가 넉넉하게 잡혔지만, 힘을 빼고 몸을 물에 띄우는 감각을 익히기에 좋은 세션이었습니다.")
-    3. 다음 수영 때 신경 쓰면 좋은 아주 쉬운 꿀팁 1개 (예: "다음번에는 출발할 때 벽을 발로 콩 차고 앞으로 쭉 뻗어 2~3초 미끄러지는 느낌을 즐겨보세요!")
+    [반드시 지켜야 할 3문장 구조]
+    1. 완주 칭찬: 오늘도 물속에서 끝까지 세션을 마친 것을 밝게 칭찬하기.
+    2. 상황 공감: 쉬는 시간이나 연습 구간이 섞여 여유 있게 페이스를 조절하며 물을 탄 점을 자연스럽게 짚어주기.
+    3. 쉬운 일상 팁 1개: '출발할 때 벽 차고 2초 미끄러지기', '숨 쉴 때 고개 너무 들지 않기', '손바닥 힘 빼기'처럼 초보자도 바로 할 수 있는 동작 1개 권하기.
 
     - 종목: {sport_type}
-    - 세션명: {title}
+    - 활동명: {title}
     - 기본 기록: {summary}
     - 구간 기록: {lap_info}
     """
@@ -53,7 +52,8 @@ def process_activity(client, activity):
     laps_data = []
     lap_summary_text = "랩 세부 데이터 없음"
 
-    if "swim" in act_type:
+    # 수영 종목 판별 (수영장 및 오픈워터 포괄)
+    if "swim" in act_type or "pool" in act_type:
         sport, icon = "swim", "🏊"
         dist = round(activity.get("distance", 0))
         dur = activity.get("duration", 0)
@@ -67,7 +67,7 @@ def process_activity(client, activity):
         ]
         summary = f"거리 {dist}m, 평균 페이스 {pace}/100m, 평균 SWOLF {swolf}"
 
-        # 랩별 세부 데이터 조회
+        # 랩 데이터 가져오기
         try:
             splits = client.get_activity_splits(act_id)
             raw_laps = splits.get("lapSplits", [])
@@ -78,7 +78,6 @@ def process_activity(client, activity):
                 lap_pace_sec = int(lap_dur / (lap_dist / 100)) if lap_dist > 0 else 0
                 lap_pace = f"{lap_pace_sec // 60}'{lap_pace_sec % 60:02d}\"" if lap_pace_sec else "-"
                 
-                # 시각화 바 비율 (최대 100 기준 상대값)
                 pct = max(30, min(95, int(100 - (lap_pace_sec - 80) * 0.5))) if lap_pace_sec else 70
 
                 laps_data.append({
@@ -134,12 +133,16 @@ def process_activity(client, activity):
 
 def main():
     client = get_garmin_client()
-    raw_list = client.get_activities(0, 5)
+    # 최근 20개 활동 조회
+    raw_list = client.get_activities(0, 20)
 
     data = []
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
+            try:
+                data = json.load(f)
+            except Exception:
+                data = []
 
     existing_ids = {x["id"] for x in data}
     new_items = []
