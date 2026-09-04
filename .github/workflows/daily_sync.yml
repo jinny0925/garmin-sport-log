@@ -1,0 +1,31 @@
+name: Sync Garmin & AI Log
+
+on:
+  schedule:
+    - cron: '0 14 * * *' # 한국 시간 기준 매일 밤 11시 자동 실행
+  workflow_dispatch:      # 원할 때 수동 실행 버튼 제공
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run sync script
+        env:
+          GARMIN_EMAIL: ${{ secrets.GARMIN_EMAIL }}
+          GARMIN_PASSWORD: ${{ secrets.GARMIN_PASSWORD }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python sync.py
+      - name: Commit & Push changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add activities.json
+          git diff --quiet && git diff --staged --quiet || (git commit -m "chore: update activities.json [skip ci]" && git push)
