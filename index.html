@@ -18,6 +18,8 @@
       --shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
       --swim-color: #0284c7;
       --swim-bg: #e0f2fe;
+      --run-color: #ea580c;
+      --run-bg: #ffedd5;
       --dive-color: #0d9488;
       --dive-bg: #ccfbf1;
       --golf-color: #16a34a;
@@ -27,7 +29,7 @@
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-tap-highlight-color: transparent; }
     body { background-color: var(--bg); color: var(--text); padding: 24px 16px; max-width: 720px; margin: 0 auto; line-height: 1.5; }
 
-    header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
+    header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
     .header-left h1 { font-size: 1.45rem; font-weight: 800; color: #0f172a; letter-spacing: -0.02em; }
     .header-left p { font-size: 0.8rem; color: var(--text-muted); margin-top: 2px; }
     
@@ -42,7 +44,34 @@
       cursor: pointer;
     }
 
-    .filter-tabs { display: flex; gap: 8px; margin-bottom: 24px; overflow-x: auto; padding-bottom: 4px; }
+    /* 사용자 프로필 토글 바 */
+    .user-toggle-bar {
+      display: flex;
+      background: #e2e8f0;
+      padding: 4px;
+      border-radius: 14px;
+      margin-bottom: 16px;
+      gap: 4px;
+    }
+    .user-btn {
+      flex: 1;
+      border: none;
+      background: transparent;
+      padding: 8px 0;
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #64748b;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .user-btn.active {
+      background: #ffffff;
+      color: #0f172a;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+
+    .filter-tabs { display: flex; gap: 8px; margin-bottom: 20px; overflow-x: auto; padding-bottom: 4px; }
     .filter-tab {
       background: #ffffff;
       border: 1px solid var(--border-dark);
@@ -80,6 +109,7 @@
     .cell-badges { display: flex; flex-direction: column; gap: 3px; width: 94%; }
     .cal-badge-pill { font-size: 0.65rem; font-weight: 700; padding: 2px 4px; border-radius: 6px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .badge-swim { background: var(--swim-bg); color: var(--swim-color); }
+    .badge-run { background: var(--run-bg); color: var(--run-color); }
     .badge-freediving { background: var(--dive-bg); color: var(--dive-color); }
     .badge-golf { background: var(--golf-bg); color: var(--golf-color); }
     .badge-other { background: #f1f5f9; color: #475569; }
@@ -114,15 +144,10 @@
     .session-item { background: #f8fafc; border-radius: 18px; padding: 16px; margin-bottom: 16px; border: 1px solid #f1f5f9; }
     .session-title { display: flex; justify-content: space-between; font-weight: 700; font-size: 0.98rem; margin-bottom: 12px; color: #0f172a; }
 
-    /* 정밀 지표 그리드 (항상 8칸이 2열 또는 3열로 안정적으로 렌더링) */
     .metrics-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
-    @media (max-width: 480px) {
-      .metrics-grid { grid-template-columns: repeat(3, 1fr); }
-    }
     .metric-box { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 8px 10px; font-size: 0.72rem; color: var(--text-muted); }
     .metric-box strong { display: block; font-size: 0.9rem; color: #0f172a; margin-top: 2px; }
 
-    /* 초반 / 중반 / 후반 랩 분석 전용 카드 */
     .split-analysis-card {
       background: #ffffff;
       border: 1px solid #e2e8f0;
@@ -163,17 +188,14 @@
     .split-swolf-bar { height: 100%; background: #38bdf8; border-radius: 4px; }
     .split-swolf-text { font-size: 0.68rem; color: var(--text-muted); }
 
-    /* AI 리포트 */
     .ai-box { background: #eff6ff; border-radius: 16px; padding: 16px; margin-top: 16px; font-size: 0.88rem; color: #1e3a8a; line-height: 1.6; }
     .ai-title { font-weight: 700; color: #2563eb; margin-bottom: 6px; font-size: 0.8rem; }
 
-    /* 메모 */
     .note-box { margin-top: 18px; border-top: 1px solid #f1f5f9; padding-top: 16px; }
     .note-box label { display: block; font-size: 0.82rem; color: #b45309; font-weight: 700; margin-bottom: 6px; }
     .note-box textarea { width: 100%; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; color: #0f172a; padding: 12px; font-size: 0.85rem; resize: vertical; min-height: 70px; }
     .save-btn { margin-top: 8px; background: #0f172a; color: #ffffff; border: none; padding: 8px 16px; border-radius: 8px; font-size: 0.82rem; font-weight: 600; cursor: pointer; float: right; }
 
-    /* PIN 잠금 */
     .lock-overlay { position: fixed; top:0; left:0; right:0; bottom:0; background: #ffffff; display: none; align-items: center; justify-content: center; z-index: 2000; padding: 24px; flex-direction: column; }
     .lock-box { text-align: center; max-width: 320px; width: 100%; }
     .lock-box h3 { font-size: 1.25rem; font-weight: 800; margin-bottom: 8px; }
@@ -197,6 +219,11 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
+    // URL 파라미터 감지 (?user=혁주 또는 ?user=연진)
+    const urlParams = new URLSearchParams(window.location.search);
+    const queryUser = urlParams.get('user');
+    let currentUser = queryUser || localStorage.getItem('daily_log_user') || '연진';
+
     let activityMap = {};
     const today = new Date();
     let currentYear = today.getFullYear();
@@ -204,19 +231,39 @@
     let currentFilter = "all";
     let isLocked = false;
     const DEFAULT_PIN = "1234";
+    let unsubscribe = null;
 
     const calGrid = document.getElementById("calendar-grid");
     const currentMonthLabel = document.getElementById("current-month-label");
     const modal = document.getElementById("detail-modal");
     const lockOverlay = document.getElementById("lock-overlay");
 
-    onSnapshot(collection(db, "activities"), (snapshot) => {
-      activityMap = {};
-      snapshot.forEach(docSnap => {
-        activityMap[docSnap.id] = docSnap.data();
+    // 사용자 전환 함수
+    function switchUser(targetUser) {
+      currentUser = targetUser;
+      localStorage.setItem('daily_log_user', targetUser);
+
+      document.getElementById("btn-user-yj").classList.toggle("active", targetUser === "연진");
+      document.getElementById("btn-user-hj").classList.toggle("active", targetUser === "혁주");
+
+      const colName = (targetUser === "혁주") ? "activities_hyeokju" : "activities";
+
+      if (unsubscribe) unsubscribe();
+
+      unsubscribe = onSnapshot(collection(db, colName), (snapshot) => {
+        activityMap = {};
+        snapshot.forEach(docSnap => {
+          activityMap[docSnap.id] = docSnap.data();
+        });
+        renderCalendar();
       });
-      renderCalendar();
-    });
+    }
+
+    document.getElementById("btn-user-yj").onclick = () => switchUser("연진");
+    document.getElementById("btn-user-hj").onclick = () => switchUser("혁주");
+
+    // 첫 실행
+    switchUser(currentUser);
 
     function renderCalendar() {
       calGrid.innerHTML = "";
@@ -263,6 +310,10 @@
                 bClass = "badge-swim";
                 const distNum = typeof s.distance === 'number' ? s.distance.toLocaleString() : (s.distance || '');
                 label = `🏊 ${distNum ? (String(distNum).includes('m') ? distNum : distNum + 'm') : '수영'}`;
+              } else if (s.sport === "running") {
+                bClass = "badge-run";
+                const distKm = (s.distance ? (s.distance / 1000).toFixed(2) : '0') + 'km';
+                label = `🏃 ${distKm}`;
               } else if (s.sport === "freediving") {
                 bClass = "badge-freediving";
                 label = `🤿 ${s.maxDepth ? s.maxDepth + 'm' : '다이빙'}`;
@@ -290,7 +341,6 @@
       }
     }
 
-    // 초반/중반/후반 3구간 계산 함수 (s.balance 객체가 있으면 우선 사용)
     function calculatePhaseSplits(session) {
       if (session.balance && session.balance.start && session.balance.mid && session.balance.finish) {
         return [
@@ -326,7 +376,6 @@
         }).filter(v => v > 0);
 
         const swolfs = part.map(l => typeof l.swolf === 'number' ? l.swolf : parseInt(l.swolf) || 0).filter(v => v > 0);
-
         const avgPaceSec = paces.length ? Math.round(paces.reduce((a, b) => a + b, 0) / paces.length) : 0;
         const avgPaceStr = avgPaceSec ? `${Math.floor(avgPaceSec / 60)}'${String(avgPaceSec % 60).padStart(2, '0')}"` : fallbackPace || "-";
         const avgSwolfVal = swolfs.length ? Math.round(swolfs.reduce((a, b) => a + b, 0) / swolfs.length) : fallbackSwolf || "-";
@@ -344,7 +393,7 @@
     function openDetailModal(dateStr) {
       if (isLocked) return;
       const log = activityMap[dateStr] || { date: dateStr, sessions: [], userNote: "", feedback1: "" };
-      document.getElementById("modal-date").innerText = `${dateStr} 기록`;
+      document.getElementById("modal-date").innerText = `${currentUser}님 • ${dateStr} 기록`;
 
       const container = document.getElementById("modal-sessions");
       container.innerHTML = "";
@@ -352,41 +401,37 @@
       if (!log.sessions || log.sessions.length === 0) {
         container.innerHTML = '<div style="color:#94a3b8; text-align:center; padding:24px;">기록된 운동이 없습니다.</div>';
       } else {
-        log.sessions.forEach((s, idx) => {
+        log.sessions.forEach((s) => {
           const sBox = document.createElement("div");
           sBox.className = "session-item";
 
           let metrics = "";
           let phaseHtml = "";
 
+          let hrVal = '-';
+          if (s.avgHR && s.maxHR) hrVal = `${s.avgHR} / ${s.maxHR}`;
+          else if (s.heartRate) hrVal = s.heartRate;
+          else if (s.avgHR) hrVal = `${s.avgHR} bpm`;
+
+          let teVal = '-';
+          if (s.aerobicTE !== undefined) teVal = `유 ${s.aerobicTE} / 무 ${s.anaerobicTE ?? 0}`;
+          else if (s.trainingEffect) teVal = s.trainingEffect;
+
+          const loadVal = s.trainingLoad ?? s.load ?? '-';
+
+          let calVal = '-';
+          const calRaw = s.calories ?? s.totalCalories;
+          if (calRaw) calVal = String(calRaw).replace('kcal', '').trim() + ' kcal';
+
           if (s.sport === "swim") {
-            // 키 호환 완벽 매핑
             const distVal = s.distance ? (String(s.distance).includes('m') ? s.distance : s.distance.toLocaleString() + 'm') : '-';
             const paceVal = s.pace || s.avgPace || '-';
             const swolfVal = s.swolf || s.avgSwolf || '-';
-            
             const strokeRaw = s.avgStrokes ?? s.strokes ?? s.avgStrokesPerLength;
             const strokeVal = strokeRaw ? (String(strokeRaw).includes('회') ? strokeRaw : strokeRaw + '회') : '-';
-
             const poolRaw = s.poolLength ?? s.pool_length;
             const poolVal = poolRaw ? (String(poolRaw).includes('m') ? poolRaw : poolRaw + 'm') : '-';
 
-            let hrVal = '-';
-            if (s.avgHR && s.maxHR) hrVal = `${s.avgHR} / ${s.maxHR}`;
-            else if (s.heartRate) hrVal = s.heartRate;
-            else if (s.avgHR) hrVal = `${s.avgHR} bpm`;
-
-            let teVal = '-';
-            if (s.aerobicTE !== undefined) teVal = `유 ${s.aerobicTE} / 무 ${s.anaerobicTE ?? 0}`;
-            else if (s.trainingEffect) teVal = s.trainingEffect;
-
-            const loadVal = s.trainingLoad ?? s.load ?? '-';
-
-            let calVal = '-';
-            const calRaw = s.calories ?? s.totalCalories;
-            if (calRaw) calVal = String(calRaw).replace('kcal', '').trim() + ' kcal';
-
-            // 항상 8개 박스 누락 없이 렌더링
             metrics += `<div class="metric-box">거리<strong>${distVal}</strong></div>`;
             metrics += `<div class="metric-box">페이스<strong>${paceVal}</strong></div>`;
             metrics += `<div class="metric-box">평균 SWOLF<strong>${swolfVal}</strong></div>`;
@@ -397,7 +442,6 @@
             metrics += `<div class="metric-box">운동 부하<strong>${loadVal}</strong></div>`;
             metrics += `<div class="metric-box">칼로리<strong>${calVal}</strong></div>`;
 
-            // 초반 / 중반 / 후반 3구간 분석 카드
             const phases = calculatePhaseSplits(s);
             const cols = phases.map(p => {
               const swolfNum = typeof p.swolf === 'number' ? p.swolf : parseInt(p.swolf) || 40;
@@ -423,14 +467,24 @@
                 <div class="split-grid">${cols}</div>
               </div>
             `;
+          } else if (s.sport === "running") {
+            const distKm = s.distance ? (s.distance / 1000).toFixed(2) + ' km' : '-';
+            const paceVal = s.pace ? s.pace + '/km' : '-';
+            const cadVal = s.cadence ? `${s.cadence} spm` : '-';
+            const durVal = s.duration ? `${Math.floor(s.duration / 60)}분 ${s.duration % 60}초` : '-';
+
+            metrics += `<div class="metric-box">러닝 거리<strong>${distKm}</strong></div>`;
+            metrics += `<div class="metric-box">평균 페이스<strong>${paceVal}</strong></div>`;
+            metrics += `<div class="metric-box">케이던스<strong>${cadVal}</strong></div>`;
+            metrics += `<div class="metric-box">달린 시간<strong>${durVal}</strong></div>`;
+            metrics += `<div class="metric-box">심박수<strong>${hrVal}</strong></div>`;
+            metrics += `<div class="metric-box">운동효과<strong>${teVal}</strong></div>`;
+            metrics += `<div class="metric-box">운동 부하<strong>${loadVal}</strong></div>`;
+            metrics += `<div class="metric-box">칼로리<strong>${calVal}</strong></div>`;
           } else if (s.sport === "golf") {
-            // ⛳ 골프 전용 정밀 박스
             const scoreVal = s.score ? `${s.score}타` : '-';
             const holesVal = s.holes ? `${s.holes}홀` : '18홀';
             const durVal = s.duration ? `${Math.floor(s.duration / 60)}분` : '-';
-            const hrVal = (s.avgHR && s.maxHR) ? `${s.avgHR} / ${s.maxHR}` : (s.avgHR ? `${s.avgHR} bpm` : '-');
-            const loadVal = s.trainingLoad ?? '-';
-            const calVal = s.calories ? `${String(s.calories).replace('kcal', '').trim()} kcal` : '-';
 
             metrics += `<div class="metric-box">스코어<strong>${scoreVal}</strong></div>`;
             metrics += `<div class="metric-box">홀수<strong>${holesVal}</strong></div>`;
@@ -438,18 +492,14 @@
             metrics += `<div class="metric-box">심박수<strong>${hrVal}</strong></div>`;
             metrics += `<div class="metric-box">운동 부하<strong>${loadVal}</strong></div>`;
             metrics += `<div class="metric-box">칼로리<strong>${calVal}</strong></div>`;
-          } else if (s.sport === "freediving") {
-            metrics += `<div class="metric-box">최대 수심<strong>${s.maxDepth || 0}m</strong></div>`;
-            metrics += `<div class="metric-box">시간<strong>${Math.floor((s.duration || 0)/60)}분</strong></div>`;
-            if (s.avgHR) metrics += `<div class="metric-box">심박<strong>${s.avgHR} bpm</strong></div>`;
           } else {
             metrics += `<div class="metric-box">시간<strong>${Math.floor((s.duration || 0)/60)}분</strong></div>`;
-            if (s.avgHR) metrics += `<div class="metric-box">심박<strong>${s.avgHR} bpm</strong></div>`;
+            metrics += `<div class="metric-box">심박수<strong>${hrVal}</strong></div>`;
           }
 
           sBox.innerHTML = `
             <div class="session-title">
-              <span>${s.icon || '🏅'} ${s.title || (s.sport === 'golf' ? '골프 라운드' : '운동 세션')}</span>
+              <span>${s.icon || '🏅'} ${s.title || (s.sport === 'running' ? '러닝' : '운동 세션')}</span>
               <span style="font-size:0.75rem; color:#94a3b8;">${s.location || ''}</span>
             </div>
             <div class="metrics-grid">${metrics}</div>
@@ -474,7 +524,8 @@
       saveBtn.onclick = async () => {
         saveBtn.innerText = "저장 중...";
         try {
-          const docRef = doc(db, "activities", dateStr);
+          const colName = (currentUser === "혁주") ? "activities_hyeokju" : "activities";
+          const docRef = doc(db, colName, dateStr);
           await updateDoc(docRef, { userNote: noteText.value });
           saveBtn.innerText = "저장 완료!";
           setTimeout(() => { saveBtn.innerText = "메모 저장"; }, 1500);
@@ -558,9 +609,16 @@
     <button class="lock-btn" id="lock-btn">🔒 잠그기</button>
   </header>
 
+  <!-- 연진 / 혁주 프로필 전환 버튼 -->
+  <div class="user-toggle-bar">
+    <button class="user-btn active" id="btn-user-yj">🏊‍♀️ 연진 기록</button>
+    <button class="user-btn" id="btn-user-hj">🏃‍♂️ 혁주 기록</button>
+  </div>
+
   <div class="filter-tabs">
     <button class="filter-tab active" data-filter="all">✨ 전체</button>
     <button class="filter-tab" data-filter="swim">🏊 수영</button>
+    <button class="filter-tab" data-filter="running">🏃 러닝</button>
     <button class="filter-tab" data-filter="freediving">🤿 프리다이빙</button>
     <button class="filter-tab" data-filter="golf">⛳ 골프</button>
   </div>
