@@ -139,7 +139,7 @@
     }
 
     /* 캘린더 내부 뱃지 */
-    .cell-badges { display: flex; flex-direction: column; gap: 3px; width: 92%; }
+    .cell-badges { display: flex; flex-direction: column; gap: 3px; width: 94%; }
     .cal-badge-pill {
       font-size: 0.65rem;
       font-weight: 700;
@@ -198,7 +198,7 @@
     .modal-header h2 { font-size: 1.15rem; font-weight: 800; color: #0f172a; }
     .close-btn { background: none; border: none; font-size: 1.4rem; color: var(--text-muted); cursor: pointer; }
 
-    /* 모달 내부 세션 */
+    /* 세션 아이템 */
     .session-item {
       background: #f8fafc;
       border-radius: 16px;
@@ -229,7 +229,7 @@
     }
     .metric-box strong { display: block; font-size: 0.88rem; color: #0f172a; margin-top: 3px; }
 
-    /* 구간별 스트로크/SWOLF 미니 바 그래프 */
+    /* 구간별 SWOLF 바 차트 */
     .chart-section {
       background: #ffffff;
       border: 1px solid #e2e8f0;
@@ -370,15 +370,15 @@
     import { getFirestore, collection, onSnapshot, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     // 본인의 Firebase Console 정보로 교체해주세요
-    const firebaseConfig = {
-      apiKey: "AIzaSyAnU1E1qhqxIzcyNaO64H_PR9r_9CrnRxQ",
-      authDomain: "garmin-sport-log.firebaseapp.com",
-      projectId: "garmin-sport-log",
-      storageBucket: "garmin-sport-log.firebasestorage.app",
-      messagingSenderId: "836183510846",
-      appId: "1:836183510846:web:b18cc66f12499f287ba66f"
-    };
-  
+      const firebaseConfig = {
+        apiKey: "AIzaSyAnU1E1qhqxIzcyNaO64H_PR9r_9CrnRxQ",
+        authDomain: "garmin-sport-log.firebaseapp.com",
+        projectId: "garmin-sport-log",
+        storageBucket: "garmin-sport-log.firebasestorage.app",
+        messagingSenderId: "836183510846",
+        appId: "1:836183510846:web:b18cc66f12499f287ba66f"
+      };
+
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
@@ -448,18 +448,21 @@
             filtered.forEach(s => {
               let label = "";
               let bClass = "badge-other";
+
+              // 종목별 이모지 및 핵심 수치 반영
               if (s.sport === "swim") {
                 bClass = "badge-swim";
-                label = `${s.distance ? s.distance.toLocaleString() + 'm' : '수영'}`;
+                label = `🏊 ${s.distance ? s.distance.toLocaleString() + 'm' : '수영'}`;
               } else if (s.sport === "freediving") {
                 bClass = "badge-freediving";
-                label = `${s.maxDepth ? s.maxDepth + 'm' : '다이빙'}`;
+                label = `🤿 ${s.maxDepth ? s.maxDepth + 'm' : '다이빙'}`;
               } else if (s.sport === "golf") {
                 bClass = "badge-golf";
-                label = `${s.score ? s.score + '타' : '골프'}`;
+                label = `⛳ ${s.score ? s.score + '타' : '골프'}`;
               } else {
-                label = s.title || "운동";
+                label = `🏅 ${s.title || "운동"}`;
               }
+
               const noteDot = log.userNote ? '<span class="badge-note-dot"></span>' : '';
               badgesHtml += `<span class="cal-badge-pill ${bClass}">${label}${noteDot}</span>`;
             });
@@ -507,7 +510,6 @@
             if (s.trainingLoad) metrics += `<div class="metric-box">부하<strong>${s.trainingLoad}</strong></div>`;
             if (s.calories) metrics += `<div class="metric-box">칼로리<strong>${s.calories} kcal</strong></div>`;
 
-            // 초반-중반-후반 구간별 SWOLF/스트로크 바 차트 생성
             if (s.laps && s.laps.length > 0) {
               const swolfValues = s.laps.map(l => typeof l.swolf === 'number' ? l.swolf : parseInt(l.swolf) || 0).filter(v => v > 0);
               const maxVal = Math.max(...swolfValues, 45);
@@ -656,7 +658,6 @@
 </head>
 <body>
 
-  <!-- 헤더 -->
   <header>
     <div class="header-left">
       <h1>Daily.Log</h1>
@@ -665,7 +666,6 @@
     <button class="lock-btn" id="lock-btn">🔒 잠그기</button>
   </header>
 
-  <!-- 종목별 필터 칩 -->
   <div class="filter-tabs">
     <button class="filter-tab active" data-filter="all">✨ 전체</button>
     <button class="filter-tab" data-filter="swim">🏊 수영</button>
@@ -673,7 +673,6 @@
     <button class="filter-tab" data-filter="golf">⛳ 골프</button>
   </div>
 
-  <!-- 캘린더 컨테이너 (스와이프 지원) -->
   <div class="cal-container" id="cal-container">
     <div class="cal-top">
       <h2 id="current-month-label"></h2>
@@ -685,7 +684,6 @@
     <div class="cal-grid" id="calendar-grid"></div>
   </div>
 
-  <!-- 상세 리포트 모달 (미니 바 그래프 포함) -->
   <div class="modal-overlay" id="detail-modal">
     <div class="modal-card">
       <div class="modal-header">
@@ -705,7 +703,6 @@
     </div>
   </div>
 
-  <!-- PIN 잠금 모달 -->
   <div class="lock-overlay" id="lock-overlay">
     <div class="lock-box">
       <h3>🔒 Daily.Log 잠김</h3>
