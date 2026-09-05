@@ -195,7 +195,6 @@
     const calGrid = document.getElementById("calendar-grid");
     const currentMonthLabel = document.getElementById("current-month-label");
     const modal = document.getElementById("detail-modal");
-    const lockOverlay = document.getElementById("lock-overlay");
 
     function switchUser(targetUser) {
       currentUser = targetUser;
@@ -273,7 +272,6 @@
                 label = `🏃 ${distKm}`;
               } else if (s.sport === "freediving") {
                 bClass = "badge-freediving";
-                // 🤿 프리다이빙은 무조건 최대 수심(maxDepth)만 정수형 m로 표시!
                 const depthVal = s.maxDepth ? Math.round(s.maxDepth) : 0;
                 label = `🤿 ${depthVal > 0 ? depthVal + 'm' : '다이빙'}`;
               } else if (s.sport === "golf") {
@@ -403,7 +401,6 @@
       modal.style.display = "flex";
     }
 
-    document.getElementById("modal-close-pid").onclick = () => modal.style.display = "none";
     document.getElementById("modal-close-btn").onclick = () => modal.style.display = "none";
     modal.onclick = (e) => { if (e.target === modal) modal.style.display = "none"; };
 
