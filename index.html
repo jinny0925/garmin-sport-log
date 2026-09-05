@@ -427,6 +427,24 @@
     document.getElementById("prev-btn").onclick = prevMonth;
     document.getElementById("next-btn").onclick = nextMonth;
 
+    // 📱 달력 좌우 스와이프 제스처 복구
+    const calArea = document.getElementById("cal-container");
+    let touchStartX = 0;
+    let touchEndX = 0;
+
+    calArea.addEventListener("touchstart", (e) => {
+      touchStartX = e.changedTouches[0].screenX;
+    }, { passive: true });
+
+    calArea.addEventListener("touchend", (e) => {
+      touchEndX = e.changedTouches[0].screenX;
+      const diff = touchEndX - touchStartX;
+      if (Math.abs(diff) > 50) {
+        if (diff > 0) prevMonth();
+        else nextMonth();
+      }
+    }, { passive: true });
+
     const lockBtn = document.getElementById("lock-btn");
     lockBtn.onclick = () => {
       isLocked = true;
