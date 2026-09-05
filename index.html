@@ -3,103 +3,174 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>스포츠 일지 & AI 코치</title>
+  <title>Daily.Log - 가민 랩 데이터 & 1:1 AI 스포츠 코치</title>
   <style>
     :root {
       --bg: #f8fafc;
       --card-bg: #ffffff;
-      --border: #e2e8f0;
-      --border-dark: #cbd5e1;
-      --text: #0f172a;
-      --text-muted: #64748b;
+      --border: #f1f5f9;
+      --border-dark: #e2e8f0;
+      --text: #1e293b;
+      --text-muted: #94a3b8;
+      --text-sub: #64748b;
       --accent: #2563eb;
-      --accent-light: #eff6ff;
-      --swim-badge: #e0f2fe;
-      --swim-text: #0284c7;
-      --dive-badge: #ccfbf1;
-      --dive-text: #0d9488;
-      --golf-badge: #dcfce7;
-      --golf-text: #16a34a;
-      --default-badge: #f1f5f9;
-      --default-text: #475569;
+      --accent-soft: #eff6ff;
+      --shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
+      --swim-color: #0284c7;
+      --swim-bg: #e0f2fe;
+      --dive-color: #0d9488;
+      --dive-bg: #ccfbf1;
+      --golf-color: #16a34a;
+      --golf-bg: #dcfce7;
     }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body { background-color: var(--bg); color: var(--text); padding: 16px; max-width: 650px; margin: 0 auto; line-height: 1.5; }
-    
-    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-    header h1 { font-size: 1.25rem; font-weight: 700; color: var(--text); }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-tap-highlight-color: transparent; }
+    body { background-color: var(--bg); color: var(--text); padding: 24px 16px; max-width: 720px; margin: 0 auto; line-height: 1.5; }
 
-    /* 화이트 달력 상단 */
-    .cal-controls {
+    /* 상단 헤더 */
+    header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
+    .header-left h1 { font-size: 1.45rem; font-weight: 800; color: #0f172a; letter-spacing: -0.02em; }
+    .header-left p { font-size: 0.8rem; color: var(--text-muted); margin-top: 2px; }
+    
+    .lock-btn {
+      background: #ffffff;
+      border: 1px solid var(--border-dark);
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--text-sub);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.2s;
+    }
+    .lock-btn:hover { background: #f8fafc; border-color: #cbd5e1; }
+
+    /* 필터 칩 탭 */
+    .filter-tabs { display: flex; gap: 8px; margin-bottom: 24px; overflow-x: auto; padding-bottom: 4px; }
+    .filter-tab {
+      background: #ffffff;
+      border: 1px solid var(--border-dark);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text-sub);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
+    }
+    .filter-tab.active {
+      background: #0f172a;
+      color: #ffffff;
+      border-color: #0f172a;
+    }
+
+    /* 캘린더 메인 카드 */
+    .cal-container {
+      background: var(--card-bg);
+      border-radius: 24px;
+      padding: 24px 20px 28px 20px;
+      box-shadow: var(--shadow);
+      border: 1px solid rgba(226, 232, 240, 0.7);
+      user-select: none;
+      touch-action: pan-y; /* 수평 스와이프 제스처 활성화 */
+    }
+
+    .cal-top {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 12px;
-      background: var(--card-bg);
-      padding: 12px 18px;
-      border-radius: 12px;
-      border: 1px solid var(--border);
-      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      margin-bottom: 24px;
+      padding: 0 4px;
     }
-    .cal-controls button {
-      background: #ffffff;
-      border: 1px solid var(--border-dark);
-      color: var(--text);
-      padding: 6px 14px;
-      border-radius: 6px;
+    .cal-top h2 { font-size: 1.15rem; font-weight: 700; color: #0f172a; }
+    .cal-nav { display: flex; gap: 12px; }
+    .cal-nav button {
+      background: none;
+      border: none;
+      font-size: 1rem;
+      color: var(--text-muted);
       cursor: pointer;
-      font-weight: 600;
+      padding: 4px 8px;
+      border-radius: 6px;
     }
-    .cal-controls button:hover { background: #f1f5f9; }
-    .cal-controls span { font-weight: 700; font-size: 1.05rem; color: var(--text); }
+    .cal-nav button:hover { color: #0f172a; background: #f1f5f9; }
 
-    /* 달력 그리드 */
-    .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 24px; }
-    .cal-header { text-align: center; font-size: 0.8rem; color: var(--text-muted); padding: 6px 0; font-weight: 700; }
-    
+    .cal-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      row-gap: 14px;
+      column-gap: 6px;
+    }
+    .cal-day-name {
+      text-align: center;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
     .cal-cell {
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      min-height: 76px;
-      padding: 6px;
+      min-height: 64px;
       display: flex;
       flex-direction: column;
+      align-items: center;
       justify-content: flex-start;
-      gap: 3px;
+      border-radius: 12px;
+      padding: 4px 2px;
       cursor: pointer;
-      transition: all 0.15s ease;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+      position: relative;
+      transition: background 0.15s;
     }
-    .cal-cell:hover { border-color: var(--accent); background: #fdfdfd; transform: translateY(-1px); }
-    .cal-cell.empty { background: transparent; border-color: transparent; cursor: default; box-shadow: none; }
-    .cal-date { font-size: 0.8rem; font-weight: 700; color: #334155; margin-bottom: 2px; }
-
-    /* 종목별 뱃지 */
-    .cal-badge {
-      font-size: 0.65rem;
-      border-radius: 4px;
-      padding: 2px 4px;
+    .cal-cell:hover { background: #f8fafc; }
+    .cal-cell.empty { cursor: default; background: transparent !important; }
+    .cal-cell-num {
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: #334155;
+      margin-bottom: 4px;
+    }
+    .cal-cell.today .cal-cell-num {
       font-weight: 700;
+      color: var(--accent);
+    }
+
+    /* 캘린더 내부 점/뱃지 */
+    .cell-badges { display: flex; flex-direction: column; gap: 3px; width: 92%; }
+    .cal-badge-pill {
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 2px 4px;
+      border-radius: 6px;
+      text-align: center;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
       display: block;
-      border: 1px solid transparent;
     }
-    .badge-swim { background: var(--swim-badge); color: var(--swim-text); border-color: #bae6fd; }
-    .badge-freediving { background: var(--dive-badge); color: var(--dive-text); border-color: #99f6e4; }
-    .badge-golf { background: var(--golf-badge); color: var(--golf-text); border-color: #bbf7d0; }
-    .badge-default { background: var(--default-badge); color: var(--default-text); border-color: var(--border); }
-    .badge-has-note { border-left: 3px solid #f59e0b; }
+    .badge-swim { background: var(--swim-bg); color: var(--swim-color); }
+    .badge-freediving { background: var(--dive-bg); color: var(--dive-color); }
+    .badge-golf { background: var(--golf-bg); color: var(--golf-color); }
+    .badge-other { background: #f1f5f9; color: #475569; }
+    .badge-note-dot {
+      display: inline-block;
+      width: 4px;
+      height: 4px;
+      background: #f59e0b;
+      border-radius: 50%;
+      margin-left: 2px;
+      vertical-align: middle;
+    }
 
-    /* 모달 */
+    /* 모달 팝업 */
     .modal-overlay {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(15, 23, 42, 0.45);
-      backdrop-filter: blur(2px);
+      background: rgba(15, 23, 42, 0.4);
+      backdrop-filter: blur(4px);
       display: none;
       align-items: center;
       justify-content: center;
@@ -108,105 +179,135 @@
     }
     .modal-card {
       background: #ffffff;
-      border-radius: 16px;
+      border-radius: 24px;
       width: 100%;
-      max-width: 520px;
+      max-width: 500px;
       max-height: 90vh;
       overflow-y: auto;
-      padding: 20px;
-      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
-      border: 1px solid var(--border);
+      padding: 24px;
+      box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.15);
     }
     .modal-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      border-bottom: 1px solid var(--border);
-      padding-bottom: 12px;
+      border-bottom: 1px solid #f1f5f9;
+      padding-bottom: 14px;
       margin-bottom: 16px;
     }
-    .modal-header h2 { font-size: 1.15rem; font-weight: 700; color: var(--text); }
-    .close-btn { background: none; border: none; font-size: 1.5rem; color: var(--text-muted); cursor: pointer; }
+    .modal-header h2 { font-size: 1.15rem; font-weight: 800; color: #0f172a; }
+    .close-btn { background: none; border: none; font-size: 1.4rem; color: var(--text-muted); cursor: pointer; }
 
-    /* 세션 카드 */
-    .session-box {
+    /* 모달 내부 세션 */
+    .session-item {
       background: #f8fafc;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 14px;
-      margin-bottom: 12px;
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 14px;
+      border: 1px solid #f1f5f9;
     }
-    .session-top {
+    .session-title {
       display: flex;
       justify-content: space-between;
-      align-items: baseline;
       font-weight: 700;
       font-size: 0.95rem;
-      margin-bottom: 10px;
-      color: var(--text);
+      margin-bottom: 12px;
+      color: #0f172a;
     }
-    
     .metrics-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       gap: 8px;
-      margin-bottom: 10px;
     }
-    .metric-item {
+    .metric-box {
       background: #ffffff;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 6px 8px;
-      font-size: 0.75rem;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-size: 0.72rem;
       color: var(--text-muted);
     }
-    .metric-item strong { display: block; font-size: 0.85rem; color: var(--text); margin-top: 2px; }
+    .metric-box strong { display: block; font-size: 0.88rem; color: #0f172a; margin-top: 3px; }
 
-    /* 랩 타임 목록 */
-    .laps-wrap { margin-top: 8px; border-top: 1px dashed var(--border-dark); padding-top: 8px; font-size: 0.75rem; color: var(--text-muted); }
+    .laps-wrap { margin-top: 10px; border-top: 1px dashed #e2e8f0; padding-top: 8px; font-size: 0.75rem; color: var(--text-sub); }
     .lap-row { display: flex; justify-content: space-between; padding: 2px 0; }
 
-    /* AI 리포트 박스 */
+    /* AI 리포트 */
     .ai-box {
-      background: var(--accent-light);
-      border-left: 4px solid var(--accent);
-      border-radius: 6px;
-      padding: 14px;
-      margin-top: 14px;
+      background: #eff6ff;
+      border-radius: 16px;
+      padding: 16px;
+      margin-top: 16px;
       font-size: 0.88rem;
       color: #1e3a8a;
       line-height: 1.6;
     }
-    .ai-title { font-weight: 700; color: var(--accent); margin-bottom: 6px; font-size: 0.82rem; }
+    .ai-title { font-weight: 700; color: #2563eb; margin-bottom: 6px; font-size: 0.8rem; }
 
-    /* 일기 & 메모 */
-    .note-box { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 14px; }
+    /* 메모 */
+    .note-box { margin-top: 18px; border-top: 1px solid #f1f5f9; padding-top: 16px; }
     .note-box label { display: block; font-size: 0.82rem; color: #b45309; font-weight: 700; margin-bottom: 6px; }
     .note-box textarea {
       width: 100%;
-      background: #ffffff;
-      border: 1px solid var(--border-dark);
-      border-radius: 8px;
-      color: var(--text);
-      padding: 10px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      color: #0f172a;
+      padding: 12px;
       font-size: 0.85rem;
       resize: vertical;
       min-height: 70px;
     }
-    .note-box textarea:focus { outline: none; border-color: var(--accent); }
+    .note-box textarea:focus { outline: none; border-color: var(--accent); background: #ffffff; }
     .save-btn {
       margin-top: 8px;
-      background: var(--accent);
-      color: #fff;
+      background: #0f172a;
+      color: #ffffff;
       border: none;
       padding: 8px 16px;
-      border-radius: 6px;
-      font-size: 0.85rem;
+      border-radius: 8px;
+      font-size: 0.82rem;
       font-weight: 600;
       cursor: pointer;
       float: right;
     }
-    .save-btn:hover { background: #1d4ed8; }
+
+    /* 핀 번호 잠금 모달 */
+    .lock-overlay {
+      position: fixed;
+      top:0; left:0; right:0; bottom:0;
+      background: #ffffff;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+      padding: 24px;
+      flex-direction: column;
+    }
+    .lock-box { text-align: center; max-width: 320px; width: 100%; }
+    .lock-box h3 { font-size: 1.25rem; font-weight: 800; margin-bottom: 8px; }
+    .lock-box p { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 20px; }
+    .pin-input {
+      width: 100%;
+      text-align: center;
+      letter-spacing: 12px;
+      font-size: 1.8rem;
+      padding: 10px;
+      border: 1px solid var(--border-dark);
+      border-radius: 12px;
+      margin-bottom: 14px;
+    }
+    .unlock-btn {
+      width: 100%;
+      background: #0f172a;
+      color: #fff;
+      border: none;
+      padding: 12px;
+      border-radius: 12px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
   </style>
 
   <!-- Firebase Modular SDK -->
@@ -214,15 +315,15 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getFirestore, collection, onSnapshot, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-     const firebaseConfig = {
-      apiKey: "AIzaSyAnU1E1qhqxIzcyNaO64H_PR9r_9CrnRxQ",
-      authDomain: "garmin-sport-log.firebaseapp.com",
-      projectId: "garmin-sport-log",
-      storageBucket: "garmin-sport-log.firebasestorage.app",
-      messagingSenderId: "836183510846",
-      appId: "1:836183510846:web:b18cc66f12499f287ba66f"
+    // 본인의 Firebase Console 정보로 직접 교체해주세요
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT_ID.appspot.com",
+      messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+      appId: "YOUR_APP_ID"
     };
-  
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
@@ -231,11 +332,16 @@
     const today = new Date();
     let currentYear = today.getFullYear();
     let currentMonth = today.getMonth();
+    let currentFilter = "all"; // 'all', 'swim', 'freediving', 'golf'
+    let isLocked = false;
+    const DEFAULT_PIN = "0212"; // 원하시는 비밀번호로 변경 가능
 
     const calGrid = document.getElementById("calendar-grid");
     const currentMonthLabel = document.getElementById("current-month-label");
     const modal = document.getElementById("detail-modal");
+    const lockOverlay = document.getElementById("lock-overlay");
 
+    // Firestore 실시간 데이터 로드
     onSnapshot(collection(db, "activities"), (snapshot) => {
       activityMap = {};
       snapshot.forEach(docSnap => {
@@ -244,6 +350,7 @@
       renderCalendar();
     });
 
+    // 캘린더 렌더링
     function renderCalendar() {
       calGrid.innerHTML = "";
       currentMonthLabel.innerText = `${currentYear}년 ${currentMonth + 1}월`;
@@ -251,12 +358,12 @@
       const firstDayIndex = new Date(currentYear, currentMonth, 1).getDay();
       const lastDate = new Date(currentYear, currentMonth + 1, 0).getDate();
 
-      const days = ["일", "월", "화", "수", "목", "금", "토"];
-      days.forEach(d => {
-        const h = document.createElement("div");
-        h.className = "cal-header";
-        h.innerText = d;
-        calGrid.appendChild(h);
+      const dayNames = ["일", "월", "화", "수", "목", "금", "토"];
+      dayNames.forEach(d => {
+        const div = document.createElement("div");
+        div.className = "cal-day-name";
+        div.innerText = d;
+        calGrid.appendChild(div);
       });
 
       for (let i = 0; i < firstDayIndex; i++) {
@@ -270,34 +377,44 @@
         cell.className = "cal-cell";
 
         const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const isToday = (today.getFullYear() === currentYear && today.getMonth() === currentMonth && today.getDate() === d);
+        if (isToday) cell.classList.add("today");
+
         const log = activityMap[dateStr];
-
         let badgesHtml = "";
-        if (log && log.sessions && log.sessions.length > 0) {
-          log.sessions.forEach(s => {
-            let label = "";
-            let bClass = "badge-default";
-            
-            if (s.sport === "swim") {
-              bClass = "badge-swim";
-              label = `🏊 ${s.distance ? s.distance.toLocaleString() + 'm' : '수영'}`;
-            } else if (s.sport === "freediving") {
-              bClass = "badge-freediving";
-              label = `🤿 ${s.maxDepth ? s.maxDepth + 'm' : '다이빙'}`;
-            } else if (s.sport === "golf") {
-              bClass = "badge-golf";
-              label = `⛳ ${s.score ? s.score + '타' : '골프'}`;
-            } else {
-              label = `🏅 ${s.title || '운동'}`;
-            }
 
-            const noteClass = log.userNote ? "badge-has-note" : "";
-            badgesHtml += `<span class="cal-badge ${bClass} ${noteClass}">${label}</span>`;
+        if (log && log.sessions && log.sessions.length > 0) {
+          const filtered = log.sessions.filter(s => {
+            if (currentFilter === "all") return true;
+            return s.sport === currentFilter;
           });
+
+          if (filtered.length > 0) {
+            badgesHtml = '<div class="cell-badges">';
+            filtered.forEach(s => {
+              let label = "";
+              let bClass = "badge-other";
+              if (s.sport === "swim") {
+                bClass = "badge-swim";
+                label = `${s.distance ? s.distance.toLocaleString() + 'm' : '수영'}`;
+              } else if (s.sport === "freediving") {
+                bClass = "badge-freediving";
+                label = `${s.maxDepth ? s.maxDepth + 'm' : '다이빙'}`;
+              } else if (s.sport === "golf") {
+                bClass = "badge-golf";
+                label = `${s.score ? s.score + '타' : '골프'}`;
+              } else {
+                label = s.title || "운동";
+              }
+              const noteDot = log.userNote ? '<span class="badge-note-dot"></span>' : '';
+              badgesHtml += `<span class="cal-badge-pill ${bClass}">${label}${noteDot}</span>`;
+            });
+            badgesHtml += '</div>';
+          }
         }
 
         cell.innerHTML = `
-          <div class="cal-date">${d}</div>
+          <div class="cal-cell-num">${d}</div>
           ${badgesHtml}
         `;
 
@@ -306,34 +423,35 @@
       }
     }
 
+    // 상세 모달 열기
     function openDetailModal(dateStr) {
+      if (isLocked) return;
       const log = activityMap[dateStr] || { date: dateStr, sessions: [], userNote: "", feedback1: "" };
       document.getElementById("modal-date").innerText = `${dateStr} 기록`;
 
-      const sessionsContainer = document.getElementById("modal-sessions");
-      sessionsContainer.innerHTML = "";
+      const container = document.getElementById("modal-sessions");
+      container.innerHTML = "";
 
       if (!log.sessions || log.sessions.length === 0) {
-        sessionsContainer.innerHTML = '<div style="color:#64748b; text-align:center; padding:24px;">기록된 운동이 없습니다.</div>';
+        container.innerHTML = '<div style="color:#94a3b8; text-align:center; padding:24px;">기록된 운동이 없습니다.</div>';
       } else {
         log.sessions.forEach(s => {
           const sBox = document.createElement("div");
-          sBox.className = "session-box";
-          
+          sBox.className = "session-item";
+
           let metrics = "";
           let lapsHtml = "";
 
-          // 종목별 맞춤 데이터 표시
           if (s.sport === "swim") {
-            metrics += `<div class="metric-item">거리<strong>${s.distance ? s.distance.toLocaleString() + 'm' : '-'}</strong></div>`;
-            metrics += `<div class="metric-item">페이스<strong>${s.pace || '-'}</strong></div>`;
-            metrics += `<div class="metric-item">SWOLF<strong>${s.swolf || '-'}</strong></div>`;
-            if (s.avgStrokes) metrics += `<div class="metric-item">스트로크<strong>${s.avgStrokes}회/길이</strong></div>`;
-            if (s.poolLength) metrics += `<div class="metric-item">풀 길이<strong>${s.poolLength}m</strong></div>`;
-            if (s.avgHR) metrics += `<div class="metric-item">심박수<strong>${s.avgHR} / 최대 ${s.maxHR || '-'}</strong></div>`;
-            if (s.aerobicTE) metrics += `<div class="metric-item">운동 효과<strong>유산소 ${s.aerobicTE} / 무산소 ${s.anaerobicTE || 0}</strong></div>`;
-            if (s.trainingLoad) metrics += `<div class="metric-item">운동 부하<strong>${s.trainingLoad}</strong></div>`;
-            if (s.calories) metrics += `<div class="metric-item">칼로리<strong>${s.calories} kcal</strong></div>`;
+            metrics += `<div class="metric-box">거리<strong>${s.distance ? s.distance.toLocaleString() + 'm' : '-'}</strong></div>`;
+            metrics += `<div class="metric-box">페이스<strong>${s.pace || '-'}</strong></div>`;
+            metrics += `<div class="metric-box">SWOLF<strong>${s.swolf || '-'}</strong></div>`;
+            if (s.avgStrokes) metrics += `<div class="metric-box">스트로크<strong>${s.avgStrokes}회</strong></div>`;
+            if (s.poolLength) metrics += `<div class="metric-box">레인<strong>${s.poolLength}m</strong></div>`;
+            if (s.avgHR) metrics += `<div class="metric-box">심박<strong>${s.avgHR} / ${s.maxHR || '-'}</strong></div>`;
+            if (s.aerobicTE) metrics += `<div class="metric-box">운동효과<strong>유 ${s.aerobicTE} / 무 ${s.anaerobicTE || 0}</strong></div>`;
+            if (s.trainingLoad) metrics += `<div class="metric-box">부하<strong>${s.trainingLoad}</strong></div>`;
+            if (s.calories) metrics += `<div class="metric-box">칼로리<strong>${s.calories} kcal</strong></div>`;
 
             if (s.laps && s.laps.length > 0) {
               lapsHtml = '<div class="laps-wrap">' + s.laps.map(l => 
@@ -341,49 +459,47 @@
               ).join("") + '</div>';
             }
           } else if (s.sport === "freediving") {
-            metrics += `<div class="metric-item">최대 수심<strong>${s.maxDepth || 0}m</strong></div>`;
-            metrics += `<div class="metric-item">시간<strong>${Math.floor((s.duration || 0)/60)}분</strong></div>`;
-            if (s.avgHR) metrics += `<div class="metric-item">심박수<strong>평균 ${s.avgHR} / 최대 ${s.maxHR || '-'}</strong></div>`;
+            metrics += `<div class="metric-box">최대 수심<strong>${s.maxDepth || 0}m</strong></div>`;
+            metrics += `<div class="metric-box">시간<strong>${Math.floor((s.duration || 0)/60)}분</strong></div>`;
+            if (s.avgHR) metrics += `<div class="metric-box">심박<strong>${s.avgHR} bpm</strong></div>`;
           } else if (s.sport === "golf") {
-            metrics += `<div class="metric-item">스코어<strong>${s.score || '-'}</strong></div>`;
-            metrics += `<div class="metric-item">라운딩 시간<strong>${Math.floor((s.duration || 0)/60)}분</strong></div>`;
-            if (s.calories) metrics += `<div class="metric-item">칼로리<strong>${s.calories} kcal</strong></div>`;
+            metrics += `<div class="metric-box">스코어<strong>${s.score || '-'}</strong></div>`;
+            metrics += `<div class="metric-box">시간<strong>${Math.floor((s.duration || 0)/60)}분</strong></div>`;
+            if (s.calories) metrics += `<div class="metric-box">칼로리<strong>${s.calories} kcal</strong></div>`;
           } else {
-            metrics += `<div class="metric-item">시간<strong>${Math.floor((s.duration || 0)/60)}분</strong></div>`;
-            if (s.avgHR) metrics += `<div class="metric-item">심박수<strong>평균 ${s.avgHR}</strong></div>`;
+            metrics += `<div class="metric-box">시간<strong>${Math.floor((s.duration || 0)/60)}분</strong></div>`;
+            if (s.avgHR) metrics += `<div class="metric-box">심박<strong>${s.avgHR} bpm</strong></div>`;
           }
 
           sBox.innerHTML = `
-            <div class="session-top">
+            <div class="session-title">
               <span>${s.icon || '🏅'} ${s.title || '운동 세션'}</span>
-              <span style="font-size:0.75rem; color:#64748b;">${s.location || ''}</span>
+              <span style="font-size:0.75rem; color:#94a3b8;">${s.location || ''}</span>
             </div>
             <div class="metrics-grid">${metrics}</div>
             ${lapsHtml}
           `;
-          sessionsContainer.appendChild(sBox);
+          container.appendChild(sBox);
         });
       }
 
-      // AI 피드백
-      const aiContainer = document.getElementById("modal-ai");
+      const aiBox = document.getElementById("modal-ai");
       if (log.feedback1) {
-        aiContainer.style.display = "block";
+        aiBox.style.display = "block";
         document.getElementById("modal-ai-text").innerText = log.feedback1;
       } else {
-        aiContainer.style.display = "none";
+        aiBox.style.display = "none";
       }
 
-      // 일기/메모
-      const noteInput = document.getElementById("modal-note");
-      noteInput.value = log.userNote || "";
+      const noteText = document.getElementById("modal-note");
+      noteText.value = log.userNote || "";
 
       const saveBtn = document.getElementById("modal-save-btn");
       saveBtn.onclick = async () => {
         saveBtn.innerText = "저장 중...";
         try {
           const docRef = doc(db, "activities", dateStr);
-          await updateDoc(docRef, { userNote: noteInput.value });
+          await updateDoc(docRef, { userNote: noteText.value });
           saveBtn.innerText = "저장 완료!";
           setTimeout(() => { saveBtn.innerText = "메모 저장"; }, 1500);
         } catch (err) {
@@ -395,37 +511,109 @@
       modal.style.display = "flex";
     }
 
-    document.getElementById("modal-close-btn").addEventListener("click", () => {
-      modal.style.display = "none";
-    });
-    modal.addEventListener("click", (e) => {
-      if (e.target === modal) modal.style.display = "none";
+    // 모달 닫기
+    document.getElementById("modal-close-btn").onclick = () => modal.style.display = "none";
+    modal.onclick = (e) => { if (e.target === modal) modal.style.display = "none"; };
+
+    // 필터 탭 클릭
+    document.querySelectorAll(".filter-tab").forEach(tab => {
+      tab.addEventListener("click", (e) => {
+        document.querySelectorAll(".filter-tab").forEach(t => t.classList.remove("active"));
+        tab.classList.add("active");
+        currentFilter = tab.getAttribute("data-filter");
+        renderCalendar();
+      });
     });
 
-    document.getElementById("prev-month-btn").addEventListener("click", () => {
+    // 월 이동 함수
+    function prevMonth() {
       currentMonth--;
       if (currentMonth < 0) { currentMonth = 11; currentYear--; }
       renderCalendar();
-    });
-    document.getElementById("next-month-btn").addEventListener("click", () => {
+    }
+    function nextMonth() {
       currentMonth++;
       if (currentMonth > 11) { currentMonth = 0; currentYear++; }
       renderCalendar();
-    });
+    }
+
+    document.getElementById("prev-btn").onclick = prevMonth;
+    document.getElementById("next-btn").onclick = nextMonth;
+
+    // 좌우 스와이프 제스처 (Touch Event)
+    const calArea = document.getElementById("cal-container");
+    let touchStartX = 0;
+    let touchEndX = 0;
+
+    calArea.addEventListener("touchstart", (e) => {
+      touchStartX = e.changedTouches[0].screenX;
+    }, { passive: true });
+
+    calArea.addEventListener("touchend", (e) => {
+      touchEndX = e.changedTouches[0].screenX;
+      handleSwipe();
+    }, { passive: true });
+
+    function handleSwipe() {
+      const diff = touchEndX - touchStartX;
+      if (Math.abs(diff) > 50) { // 50px 이상 밀었을 때
+        if (diff > 0) {
+          prevMonth(); // 오른쪽으로 밀면 이전 달
+        } else {
+          nextMonth(); // 왼쪽으로 밀면 다음 달
+        }
+      }
+    }
+
+    // 잠그기 기능
+    const lockBtn = document.getElementById("lock-btn");
+    lockBtn.onclick = () => {
+      isLocked = true;
+      lockOverlay.style.display = "flex";
+      document.getElementById("pin-input").value = "";
+    };
+
+    document.getElementById("unlock-btn").onclick = () => {
+      const entered = document.getElementById("pin-input").value;
+      if (entered === DEFAULT_PIN) {
+        isLocked = false;
+        lockOverlay.style.display = "none";
+      } else {
+        alert("비밀번호가 일치하지 않습니다.");
+      }
+    };
   </script>
 </head>
 <body>
+
+  <!-- 헤더 -->
   <header>
-    <h1>Sports Log & AI Coach</h1>
+    <div class="header-left">
+      <h1>Daily.Log</h1>
+      <p>가민 랩 데이터 & 1:1 AI 스포츠 코치</p>
+    </div>
+    <button class="lock-btn" id="lock-btn">🔒 잠그기</button>
   </header>
 
-  <div class="cal-controls">
-    <button id="prev-month-btn">&lt;</button>
-    <span id="current-month-label"></span>
-    <button id="next-month-btn">&gt;</button>
+  <!-- 종목별 필터 칩 -->
+  <div class="filter-tabs">
+    <button class="filter-tab active" data-filter="all">✨ 전체</button>
+    <button class="filter-tab" data-filter="swim">🏊 수영</button>
+    <button class="filter-tab" data-filter="freediving">🤿 프리다이빙</button>
+    <button class="filter-tab" data-filter="golf">⛳ 골프</button>
   </div>
 
-  <div class="cal-grid" id="calendar-grid"></div>
+  <!-- 캘린더 컨테이너 (스와이프 제스처 지원) -->
+  <div class="cal-container" id="cal-container">
+    <div class="cal-top">
+      <h2 id="current-month-label"></h2>
+      <div class="cal-nav">
+        <button id="prev-btn">&lt;</button>
+        <button id="next-btn">&gt;</button>
+      </div>
+    </div>
+    <div class="cal-grid" id="calendar-grid"></div>
+  </div>
 
   <!-- 상세 리포트 모달 -->
   <div class="modal-overlay" id="detail-modal">
@@ -434,20 +622,28 @@
         <h2 id="modal-date"></h2>
         <button class="close-btn" id="modal-close-btn">&times;</button>
       </div>
-
       <div id="modal-sessions"></div>
-
       <div class="ai-box" id="modal-ai" style="display:none;">
         <div class="ai-title">🤖 AI 코칭 리포트</div>
         <div id="modal-ai-text"></div>
       </div>
-
-      <div class="note-box" style="overflow: hidden;">
+      <div class="note-box" style="overflow:hidden;">
         <label>📝 운동 일기 & 메모</label>
-        <textarea id="modal-note" placeholder="오늘 훈련 감각, 컨디션 등을 작성하세요."></textarea>
+        <textarea id="modal-note" placeholder="오늘 운동 감각, 컨디션 등을 남겨보세요."></textarea>
         <button class="save-btn" id="modal-save-btn">메모 저장</button>
       </div>
     </div>
   </div>
+
+  <!-- 비밀번호 잠금 화면 -->
+  <div class="lock-overlay" id="lock-overlay">
+    <div class="lock-box">
+      <h3>🔒 Daily.Log 잠김</h3>
+      <p>운동 일지를 보려면 PIN 4자리를 입력하세요.</p>
+      <input type="password" class="pin-input" id="pin-input" maxlength="4" placeholder="••••" />
+      <button class="unlock-btn" id="unlock-btn">잠금 해제</button>
+    </div>
+  </div>
+
 </body>
 </html>
