@@ -338,6 +338,7 @@ def sync_user(client, user_name, collection_name):
 
 def main():
     if not db:
+        print("Firestore 초기화가 되지 않아 동기화를 중단합니다.")
         return
 
     # 1. 연진 동기화 (기존 컬렉션 activities 유지)
@@ -345,12 +346,23 @@ def main():
         client_yj = get_garmin_client(GARMIN_EMAIL, GARMIN_PASSWORD)
         if client_yj:
             sync_user(client_yj, "연진", "activities")
+    else:
+        print("⚠️ [연진] 가민 계정 환경변수가 없습니다.")
 
-    # 2. 혁주 동기화 (컬렉션 activities_hyeokju)
+    # 2. 혁주 동기화 진단 및 실행
+    print("\n--- 혁주 계정 환경변수 점검 ---")
+    print(f"GARMIN_EMAIL_HJ 주입 여부: {bool(GARMIN_EMAIL_HJ)}")
+    print(f"GARMIN_PASSWORD_HJ 주입 여부: {bool(GARMIN_PASSWORD_HJ)}")
+
     if GARMIN_EMAIL_HJ and GARMIN_PASSWORD_HJ:
         client_hj = get_garmin_client(GARMIN_EMAIL_HJ, GARMIN_PASSWORD_HJ)
         if client_hj:
             sync_user(client_hj, "혁주", "activities_hyeokju")
+        else:
+            print("❌ [혁주] 가민 로그인 실패 (이메일/비밀번호 확인 필요)")
+    else:
+        print("⚠️ [혁주] 환경변수가 전달되지 않아 동기화를 건너뜁니다.")
+        print("-> GitHub 저장소의 .github/workflows/*.yml 파일에 GARMIN_EMAIL_HJ, GARMIN_PASSWORD_HJ가 env에 선언되어 있는지 확인하세요.")
 
 if __name__ == "__main__":
     main()
