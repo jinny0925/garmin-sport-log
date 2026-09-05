@@ -148,46 +148,6 @@
     .metric-box { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 8px 10px; font-size: 0.72rem; color: var(--text-muted); }
     .metric-box strong { display: block; font-size: 0.9rem; color: #0f172a; margin-top: 2px; }
 
-    .split-analysis-card {
-      background: #ffffff;
-      border: 1px solid #e2e8f0;
-      border-radius: 14px;
-      padding: 14px;
-      margin-top: 12px;
-    }
-    .split-title {
-      font-size: 0.8rem;
-      font-weight: 700;
-      color: #334155;
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 12px;
-      align-items: center;
-    }
-    .split-title span.sub { font-size: 0.7rem; color: var(--text-muted); font-weight: 400; }
-    
-    .split-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 8px;
-      text-align: center;
-    }
-    .split-col {
-      background: #f8fafc;
-      border: 1px solid #f1f5f9;
-      border-radius: 10px;
-      padding: 10px 6px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: space-between;
-    }
-    .split-label { font-size: 0.75rem; font-weight: 700; color: var(--text-sub); margin-bottom: 4px; }
-    .split-pace { font-size: 0.92rem; font-weight: 800; color: #0284c7; }
-    .split-swolf-bar-wrap { width: 80%; height: 6px; background: #e2e8f0; border-radius: 4px; margin: 8px 0 4px 0; overflow: hidden; }
-    .split-swolf-bar { height: 100%; background: #38bdf8; border-radius: 4px; }
-    .split-swolf-text { font-size: 0.68rem; color: var(--text-muted); }
-
     .ai-box { background: #eff6ff; border-radius: 16px; padding: 16px; margin-top: 16px; font-size: 0.88rem; color: #1e3a8a; line-height: 1.6; }
     .ai-title { font-weight: 700; color: #2563eb; margin-bottom: 6px; font-size: 0.8rem; }
 
@@ -219,7 +179,6 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // URL 파라미터 감지 (?user=혁주 또는 ?user=연진)
     const urlParams = new URLSearchParams(window.location.search);
     const queryUser = urlParams.get('user');
     let currentUser = queryUser || localStorage.getItem('daily_log_user') || '연진';
@@ -238,7 +197,6 @@
     const modal = document.getElementById("detail-modal");
     const lockOverlay = document.getElementById("lock-overlay");
 
-    // 사용자 전환 함수
     function switchUser(targetUser) {
       currentUser = targetUser;
       localStorage.setItem('daily_log_user', targetUser);
@@ -262,7 +220,6 @@
     document.getElementById("btn-user-yj").onclick = () => switchUser("연진");
     document.getElementById("btn-user-hj").onclick = () => switchUser("혁주");
 
-    // 첫 실행
     switchUser(currentUser);
 
     function renderCalendar() {
@@ -316,7 +273,9 @@
                 label = `🏃 ${distKm}`;
               } else if (s.sport === "freediving") {
                 bClass = "badge-freediving";
-                label = `🤿 ${s.maxDepth ? s.maxDepth + 'm' : '다이빙'}`;
+                // 🤿 프리다이빙은 무조건 최대 수심(maxDepth)만 정수형 m로 표시!
+                const depthVal = s.maxDepth ? Math.round(s.maxDepth) : 0;
+                label = `🤿 ${depthVal > 0 ? depthVal + 'm' : '다이빙'}`;
               } else if (s.sport === "golf") {
                 bClass = "badge-golf";
                 label = `⛳ ${s.score ? s.score + '타' : '골프'}`;
@@ -341,55 +300,6 @@
       }
     }
 
-    function calculatePhaseSplits(session) {
-      if (session.balance && session.balance.start && session.balance.mid && session.balance.finish) {
-        return [
-          { phase: "초반 (Start)", pace: session.balance.start.pace || "-", swolf: session.balance.start.swolf || "-" },
-          { phase: "중반 (Mid)", pace: session.balance.mid.pace || "-", swolf: session.balance.mid.swolf || "-" },
-          { phase: "후반 (Finish)", pace: session.balance.finish.pace || "-", swolf: session.balance.finish.swolf || "-" }
-        ];
-      }
-
-      const laps = session.laps;
-      const fallbackPace = session.pace || session.avgPace;
-      const fallbackSwolf = session.swolf || session.avgSwolf;
-
-      if (!laps || laps.length === 0) {
-        return [
-          { phase: "초반 (Start)", pace: fallbackPace || "-", swolf: fallbackSwolf || "-" },
-          { phase: "중반 (Mid)", pace: fallbackPace || "-", swolf: fallbackSwolf || "-" },
-          { phase: "후반 (Finish)", pace: fallbackPace || "-", swolf: fallbackSwolf || "-" }
-        ];
-      }
-
-      const n = laps.length;
-      const part1 = laps.slice(0, Math.ceil(n / 3));
-      const part2 = laps.slice(Math.ceil(n / 3), Math.ceil((2 * n) / 3));
-      const part3 = laps.slice(Math.ceil((2 * n) / 3));
-
-      const calcAvg = (part, label) => {
-        if (!part || part.length === 0) return { phase: label, pace: fallbackPace || "-", swolf: fallbackSwolf || "-" };
-        const paces = part.map(l => {
-          if (!l.pace || l.pace === "-") return 0;
-          const [m, s] = l.pace.replace('"', '').split("'").map(Number);
-          return (m * 60) + (s || 0);
-        }).filter(v => v > 0);
-
-        const swolfs = part.map(l => typeof l.swolf === 'number' ? l.swolf : parseInt(l.swolf) || 0).filter(v => v > 0);
-        const avgPaceSec = paces.length ? Math.round(paces.reduce((a, b) => a + b, 0) / paces.length) : 0;
-        const avgPaceStr = avgPaceSec ? `${Math.floor(avgPaceSec / 60)}'${String(avgPaceSec % 60).padStart(2, '0')}"` : fallbackPace || "-";
-        const avgSwolfVal = swolfs.length ? Math.round(swolfs.reduce((a, b) => a + b, 0) / swolfs.length) : fallbackSwolf || "-";
-
-        return { phase: label, pace: avgPaceStr, swolf: avgSwolfVal };
-      };
-
-      return [
-        calcAvg(part1, "초반 (Start)"),
-        calcAvg(part2, "중반 (Mid)"),
-        calcAvg(part3, "후반 (Finish)")
-      ];
-    }
-
     function openDetailModal(dateStr) {
       if (isLocked) return;
       const log = activityMap[dateStr] || { date: dateStr, sessions: [], userNote: "", feedback1: "" };
@@ -406,104 +316,59 @@
           sBox.className = "session-item";
 
           let metrics = "";
-          let phaseHtml = "";
-
           let hrVal = '-';
           if (s.avgHR && s.maxHR) hrVal = `${s.avgHR} / ${s.maxHR}`;
-          else if (s.heartRate) hrVal = s.heartRate;
           else if (s.avgHR) hrVal = `${s.avgHR} bpm`;
 
           let teVal = '-';
           if (s.aerobicTE !== undefined) teVal = `유 ${s.aerobicTE} / 무 ${s.anaerobicTE ?? 0}`;
-          else if (s.trainingEffect) teVal = s.trainingEffect;
 
-          const loadVal = s.trainingLoad ?? s.load ?? '-';
-
-          let calVal = '-';
-          const calRaw = s.calories ?? s.totalCalories;
-          if (calRaw) calVal = String(calRaw).replace('kcal', '').trim() + ' kcal';
+          const loadVal = s.trainingLoad ?? '-';
+          const calVal = s.calories ? `${s.calories} kcal` : '-';
 
           if (s.sport === "swim") {
             const distVal = s.distance ? (String(s.distance).includes('m') ? s.distance : s.distance.toLocaleString() + 'm') : '-';
-            const paceVal = s.pace || s.avgPace || '-';
-            const swolfVal = s.swolf || s.avgSwolf || '-';
-            const strokeRaw = s.avgStrokes ?? s.strokes ?? s.avgStrokesPerLength;
-            const strokeVal = strokeRaw ? (String(strokeRaw).includes('회') ? strokeRaw : strokeRaw + '회') : '-';
-            const poolRaw = s.poolLength ?? s.pool_length;
-            const poolVal = poolRaw ? (String(poolRaw).includes('m') ? poolRaw : poolRaw + 'm') : '-';
-
             metrics += `<div class="metric-box">거리<strong>${distVal}</strong></div>`;
-            metrics += `<div class="metric-box">페이스<strong>${paceVal}</strong></div>`;
-            metrics += `<div class="metric-box">평균 SWOLF<strong>${swolfVal}</strong></div>`;
-            metrics += `<div class="metric-box">스트로크<strong>${strokeVal}</strong></div>`;
-            metrics += `<div class="metric-box">레인 길이<strong>${poolVal}</strong></div>`;
+            metrics += `<div class="metric-box">페이스<strong>${s.pace || '-'}</strong></div>`;
+            metrics += `<div class="metric-box">SWOLF<strong>${s.swolf || '-'}</strong></div>`;
+            metrics += `<div class="metric-box">스트로크<strong>${s.avgStrokes ? s.avgStrokes + '회' : '-'}</strong></div>`;
+            metrics += `<div class="metric-box">풀 길이<strong>${s.poolLength ? s.poolLength + 'm' : '25m'}</strong></div>`;
             metrics += `<div class="metric-box">심박수<strong>${hrVal}</strong></div>`;
             metrics += `<div class="metric-box">운동효과<strong>${teVal}</strong></div>`;
             metrics += `<div class="metric-box">운동 부하<strong>${loadVal}</strong></div>`;
             metrics += `<div class="metric-box">칼로리<strong>${calVal}</strong></div>`;
-
-            const phases = calculatePhaseSplits(s);
-            const cols = phases.map(p => {
-              const swolfNum = typeof p.swolf === 'number' ? p.swolf : parseInt(p.swolf) || 40;
-              const barPercent = Math.min(100, Math.max(20, Math.round((swolfNum / 60) * 100)));
-              return `
-                <div class="split-col">
-                  <div class="split-label">${p.phase}</div>
-                  <div class="split-pace">${p.pace}</div>
-                  <div class="split-swolf-bar-wrap">
-                    <div class="split-swolf-bar" style="width: ${barPercent}%;"></div>
-                  </div>
-                  <div class="split-swolf-text">SWOLF ${p.swolf}</div>
-                </div>
-              `;
-            }).join("");
-
-            phaseHtml = `
-              <div class="split-analysis-card">
-                <div class="split-title">
-                  <span>⏱️ 랩 구간별 밸런스 분석</span>
-                  <span class="sub">페이스 & SWOLF 추이</span>
-                </div>
-                <div class="split-grid">${cols}</div>
-              </div>
-            `;
           } else if (s.sport === "running") {
             const distKm = s.distance ? (s.distance / 1000).toFixed(2) + ' km' : '-';
-            const paceVal = s.pace ? s.pace + '/km' : '-';
-            const cadVal = s.cadence ? `${s.cadence} spm` : '-';
-            const durVal = s.duration ? `${Math.floor(s.duration / 60)}분 ${s.duration % 60}초` : '-';
-
-            metrics += `<div class="metric-box">러닝 거리<strong>${distKm}</strong></div>`;
-            metrics += `<div class="metric-box">평균 페이스<strong>${paceVal}</strong></div>`;
-            metrics += `<div class="metric-box">케이던스<strong>${cadVal}</strong></div>`;
-            metrics += `<div class="metric-box">달린 시간<strong>${durVal}</strong></div>`;
+            metrics += `<div class="metric-box">거리<strong>${distKm}</strong></div>`;
+            metrics += `<div class="metric-box">페이스<strong>${s.pace ? s.pace + '/km' : '-'}</strong></div>`;
+            metrics += `<div class="metric-box">케이던스<strong>${s.cadence ? s.cadence + ' spm' : '-'}</strong></div>`;
+            metrics += `<div class="metric-box">시간<strong>${s.duration ? Math.floor(s.duration / 60) + '분' : '-'}</strong></div>`;
             metrics += `<div class="metric-box">심박수<strong>${hrVal}</strong></div>`;
             metrics += `<div class="metric-box">운동효과<strong>${teVal}</strong></div>`;
             metrics += `<div class="metric-box">운동 부하<strong>${loadVal}</strong></div>`;
             metrics += `<div class="metric-box">칼로리<strong>${calVal}</strong></div>`;
+          } else if (s.sport === "freediving") {
+            const depthVal = s.maxDepth ? Math.round(s.maxDepth) + 'm' : '-';
+            const durMin = s.duration ? Math.floor(s.duration / 60) + '분 ' + (s.duration % 60) + '초' : '-';
+            metrics += `<div class="metric-box">최대 수심<strong>${depthVal}</strong></div>`;
+            metrics += `<div class="metric-box">다이빙 시간<strong>${durMin}</strong></div>`;
+            metrics += `<div class="metric-box">심박수<strong>${hrVal}</strong></div>`;
+            metrics += `<div class="metric-box">칼로리<strong>${calVal}</strong></div>`;
           } else if (s.sport === "golf") {
-            const scoreVal = s.score ? `${s.score}타` : '-';
-            const holesVal = s.holes ? `${s.holes}홀` : '18홀';
-            const durVal = s.duration ? `${Math.floor(s.duration / 60)}분` : '-';
-
-            metrics += `<div class="metric-box">스코어<strong>${scoreVal}</strong></div>`;
-            metrics += `<div class="metric-box">홀수<strong>${holesVal}</strong></div>`;
-            metrics += `<div class="metric-box">라운딩 시간<strong>${durVal}</strong></div>`;
+            metrics += `<div class="metric-box">스코어<strong>${s.score ? s.score + '타' : '-'}</strong></div>`;
+            metrics += `<div class="metric-box">홀수<strong>${s.holes ? s.holes + '홀' : '18홀'}</strong></div>`;
+            metrics += `<div class="metric-box">시간<strong>${s.duration ? Math.floor(s.duration / 60) + '분' : '-'}</strong></div>`;
             metrics += `<div class="metric-box">심박수<strong>${hrVal}</strong></div>`;
             metrics += `<div class="metric-box">운동 부하<strong>${loadVal}</strong></div>`;
             metrics += `<div class="metric-box">칼로리<strong>${calVal}</strong></div>`;
-          } else {
-            metrics += `<div class="metric-box">시간<strong>${Math.floor((s.duration || 0)/60)}분</strong></div>`;
-            metrics += `<div class="metric-box">심박수<strong>${hrVal}</strong></div>`;
           }
 
           sBox.innerHTML = `
             <div class="session-title">
-              <span>${s.icon || '🏅'} ${s.title || (s.sport === 'running' ? '러닝' : '운동 세션')}</span>
+              <span>${s.icon || '🏅'} ${s.title || '운동 세션'}</span>
               <span style="font-size:0.75rem; color:#94a3b8;">${s.location || ''}</span>
             </div>
             <div class="metrics-grid">${metrics}</div>
-            ${phaseHtml}
           `;
           container.appendChild(sBox);
         });
@@ -538,6 +403,7 @@
       modal.style.display = "flex";
     }
 
+    document.getElementById("modal-close-pid").onclick = () => modal.style.display = "none";
     document.getElementById("modal-close-btn").onclick = () => modal.style.display = "none";
     modal.onclick = (e) => { if (e.target === modal) modal.style.display = "none"; };
 
@@ -563,23 +429,6 @@
 
     document.getElementById("prev-btn").onclick = prevMonth;
     document.getElementById("next-btn").onclick = nextMonth;
-
-    const calArea = document.getElementById("cal-container");
-    let touchStartX = 0;
-    let touchEndX = 0;
-
-    calArea.addEventListener("touchstart", (e) => {
-      touchStartX = e.changedTouches[0].screenX;
-    }, { passive: true });
-
-    calArea.addEventListener("touchend", (e) => {
-      touchEndX = e.changedTouches[0].screenX;
-      const diff = touchEndX - touchStartX;
-      if (Math.abs(diff) > 50) {
-        if (diff > 0) prevMonth();
-        else nextMonth();
-      }
-    }, { passive: true });
 
     const lockBtn = document.getElementById("lock-btn");
     lockBtn.onclick = () => {
@@ -609,7 +458,6 @@
     <button class="lock-btn" id="lock-btn">🔒 잠그기</button>
   </header>
 
-  <!-- 연진 / 혁주 프로필 전환 버튼 -->
   <div class="user-toggle-bar">
     <button class="user-btn active" id="btn-user-yj">🏊‍♀️ 연진 기록</button>
     <button class="user-btn" id="btn-user-hj">🏃‍♂️ 혁주 기록</button>
