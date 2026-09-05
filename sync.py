@@ -42,8 +42,6 @@ if GEMINI_API_KEY:
 def get_garmin_client(email, password):
     if not email or not password:
         return None
-    
-    # 3번까지 재시도하되, 실패할 때마다 10초~20초씩 쉬어가며 로그인 시도
     for attempt in range(3):
         try:
             client = Garmin(email, password)
@@ -66,8 +64,8 @@ def generate_ai_analysis(user_name, date_str, sessions_summary):
 
     prompt = f"""
     당신은 1:1 퍼스널 스포츠 전문 코치입니다.
-    성인 회원({user_name}님)을 위한 전문적이고 단정한 어조(~했습니다, ~보세요)로 하루 전체 운동(수영, 러닝, 골프 등 복수 종목 포함)을 종합 분석해 정확히 3문장으로 작성하세요.
-    뻔한 템플릿 문장을 배제하고, 제공된 세부 데이터(페이스, 심박수, 케이던스, SWOLF, 훈련 부하 등)를 구체적으로 언급하세요.
+    성인 회원({user_name}님)을 위한 전문적이고 단정한 어조(~했습니다, ~보세요)로 하루 전체 운동(수영, 러닝, 골프, 프리다이빙 등 복수 종목 포함)을 종합 분석해 정확히 3문장으로 작성하세요.
+    뻔한 템플릿 문장을 배제하고, 제공된 세부 데이터(페이스, 심박수, 케이던스, SWOLF, 최대 수심, 훈련 부하 등)를 구체적으로 언급하세요.
 
     - 회원: {user_name}
     - 날짜: {date_str}
@@ -76,8 +74,8 @@ def generate_ai_analysis(user_name, date_str, sessions_summary):
 
     [3문장 필수 형식]
     1. 총평: {date_str}, [총 거리/운동량 및 수행한 종목들] 훈련을 완료했으며, [심박 반응 및 훈련 효과에 기반한 운동 목적 부합 여부]에 적합한 운동량입니다.
-    2. 데이터 분석: [페이스/케이던스/스코어], [SWOLF/심박], [효율 지표]는 [추진력, 글라이딩 및 체력 안배 상태]를 분석합니다.
-    3. 실전 팁: 다음 훈련 시 [구체적인 영법/러닝 자세/스윙 템포/호흡 등 테크닉]에 집중해 보세요.
+    2. 데이터 분석: [페이스/케이던스/스코어/수심], [SWOLF/심박], [효율 지표]는 [추진력, 글라이딩 및 체력 안배 상태]를 분석합니다.
+    3. 실전 팁: 다음 훈련 시 [구체적인 영법/러닝 자세/스윙 템포/호흡/입수 테크닉 등]에 집중해 보세요.
     """
 
     model = genai.GenerativeModel("gemini-2.5-flash")
@@ -125,7 +123,6 @@ def sync_user(client, user_name, collection_name):
         print(f"[{user_name}] 가민 클라이언트 미설정으로 건너뜁니다.")
         return
 
-    # 최근 50개 활동 가져오기
     raw_activities = client.get_activities(0, 50)
 
     grouped = {}
@@ -133,7 +130,6 @@ def sync_user(client, user_name, collection_name):
         start_str = act.get("startTimeLocal", "")
         date_str = start_str.split(" ")[0] if start_str else datetime.now().strftime("%Y-%m-%d")
         
-        # 2026-08-01 이전 과거 데이터 제외
         if date_str < START_FILTER_DATE:
             continue
 
@@ -155,7 +151,6 @@ def sync_user(client, user_name, collection_name):
         for act in acts:
             act_id = str(act.get("activityId"))
             
-            # 1) 이미 동일한 ID가 등록되어 있으면 스킵
             if act_id in existing_ids:
                 continue
 
@@ -164,7 +159,6 @@ def sync_user(client, user_name, collection_name):
             loc_name = act.get("locationName", "")
             dur = round(act.get("duration", 0))
 
-            # 2) 수동 등록 세션과 중복 방지 (같은 날짜에 종목과 거리/시간이 일치하면 스킵)
             dist_check = round(act.get("distance", 0))
             is_manual_duplicate = any(
                 (s.get("sport") in act_type or act_type in str(s.get("sport", ""))) and 
@@ -269,15 +263,18 @@ def sync_user(client, user_name, collection_name):
                     "laps": []
                 })
 
-            # 4. 다이빙 세션
+            # 4. 프리다이빙 세션 (밀리미터/10배수 정규화 적용)
             elif "div" in act_type or "apnea" in act_type:
+                raw_depth = act.get("maxDepth", 0)
+                depth_m = round(raw_depth / 10, 1) if raw_depth > 50 else round(raw_depth, 1)
+
                 new_sessions.append({
                     "id": act_id,
                     "sport": "freediving",
                     "icon": "🤿",
                     "title": title,
                     "location": loc_name,
-                    "maxDepth": act.get("maxDepth", 0),
+                    "maxDepth": depth_m,
                     "duration": dur,
                     "avgHR": avg_hr,
                     "maxHR": max_hr,
@@ -302,14 +299,25 @@ def sync_user(client, user_name, collection_name):
                     "laps": []
                 })
 
-        # 새로 추가할 세션이 아예 없으면 문서 업데이트 자체를 스킵
         if not new_sessions:
             continue
 
-        all_sessions = existing_sessions + new_sessions
+        # 💡 프리다이빙 세션이 하루에 여러 개 쪼개져 들어온 경우, 가장 깊은 최대 수심(maxDepth)을 가진 1개로 압축 병합
+        combined_existing = existing_sessions + new_sessions
+        freedivs = [s for s in combined_existing if s.get("sport") == "freediving"]
+        other_sessions = [s for s in combined_existing if s.get("sport") != "freediving"]
+
+        if len(freedivs) > 1:
+            # 가장 깊은 수심의 세션을 대표로 선정하고, 총 시간은 합산
+            best_dive = max(freedivs, key=lambda x: x.get("maxDepth", 0))
+            best_dive["duration"] = sum(s.get("duration", 0) for s in freedivs)
+            best_dive["calories"] = sum(s.get("calories", 0) for s in freedivs)
+            all_sessions = other_sessions + [best_dive]
+        else:
+            all_sessions = combined_existing
+
         total_dist = sum(s.get("distance", 0) for s in all_sessions if s.get("sport") in ["swim", "running"])
 
-        # 기존에 이미 50자 이상의 완성된 피드백이 존재하면 AI 재호출 없이 그대로 보존
         existing_fb = existing_data.get("feedback1") if existing_data else ""
         if existing_fb and len(existing_fb) > 50:
             feedback1 = existing_fb
@@ -327,6 +335,9 @@ def sync_user(client, user_name, collection_name):
                     summary_lines.append(detail)
                 elif s.get("sport") == "golf":
                     detail = f"- 골프: {s.get('title')}, {s.get('holes', 18)}홀 (스코어 {s.get('score', '-')}타), 시간 {s.get('duration', 0)//60}분"
+                    summary_lines.append(detail)
+                elif s.get("sport") == "freediving":
+                    detail = f"- 프리다이빙: 최대 수심 {s.get('maxDepth')}m, 소요시간 {s.get('duration', 0)//60}분"
                     summary_lines.append(detail)
                 else:
                     summary_lines.append(f"- {s.get('sport')}: {s.get('title')}, 시간 {s.get('duration', 0)//60}분")
@@ -351,15 +362,13 @@ def main():
         print("Firestore 초기화가 되지 않아 동기화를 중단합니다.")
         return
 
-    # 1. 연진 동기화 (기존 컬렉션 activities 유지)
+    # 1. 연진 동기화
     if GARMIN_EMAIL and GARMIN_PASSWORD:
         client_yj = get_garmin_client(GARMIN_EMAIL, GARMIN_PASSWORD)
         if client_yj:
             sync_user(client_yj, "연진", "activities")
-    else:
-        print("⚠️ [연진] 가민 계정 환경변수가 없습니다.")
 
-    # 2. 혁주 동기화 진단 및 실행
+    # 2. 혁주 동기화
     print("\n--- 혁주 계정 환경변수 점검 ---")
     print(f"GARMIN_EMAIL_HJ 주입 여부: {bool(GARMIN_EMAIL_HJ)}")
     print(f"GARMIN_PASSWORD_HJ 주입 여부: {bool(GARMIN_PASSWORD_HJ)}")
@@ -369,10 +378,9 @@ def main():
         if client_hj:
             sync_user(client_hj, "혁주", "activities_hyeokju")
         else:
-            print("❌ [혁주] 가민 로그인 실패 (이메일/비밀번호 확인 필요)")
+            print("❌ [혁주] 가민 로그인 실패")
     else:
         print("⚠️ [혁주] 환경변수가 전달되지 않아 동기화를 건너뜁니다.")
-        print("-> GitHub 저장소의 .github/workflows/*.yml 파일에 GARMIN_EMAIL_HJ, GARMIN_PASSWORD_HJ가 env에 선언되어 있는지 확인하세요.")
 
 if __name__ == "__main__":
     main()
