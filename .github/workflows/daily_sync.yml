@@ -3,7 +3,7 @@ name: Sync Garmin & AI Log
 on:
   schedule:
     - cron: '0 14 * * *' # 한국 시간 기준 매일 밤 11시 자동 실행
-  workflow_dispatch:      # 원할 때 수동 실행 버튼 제공
+  workflow_dispatch:      # 수동 실행 버튼
 
 jobs:
   sync:
@@ -24,6 +24,8 @@ jobs:
         env:
           GARMIN_EMAIL: ${{ secrets.GARMIN_EMAIL }}
           GARMIN_PASSWORD: ${{ secrets.GARMIN_PASSWORD }}
+          GARMIN_EMAIL_HJ: ${{ secrets.GARMIN_EMAIL_HJ }}
+          GARMIN_PASSWORD_HJ: ${{ secrets.GARMIN_PASSWORD_HJ }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: python sync.py
