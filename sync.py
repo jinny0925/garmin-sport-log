@@ -117,7 +117,7 @@ def main():
         doc = doc_ref.get()
         existing_data = doc.to_dict() if doc.exists else None
         
-        # 기존 저장된 세션 ID 목록 파악
+        # 기존 저장된 세션 목록 및 ID 확인
         existing_sessions = existing_data.get("sessions", []) if existing_data else []
         existing_ids = {str(s.get("id")) for s in existing_sessions}
 
@@ -132,7 +132,7 @@ def main():
             loc_name = act.get("locationName", "")
             dur = round(act.get("duration", 0))
 
-            # 심박수 및 운동 부하 지표
+            # 심박수 및 운동 부하 지표 추출
             avg_hr = round(act.get("averageHR", 0)) if act.get("averageHR") else None
             max_hr = round(act.get("maxHR", 0)) if act.get("maxHR") else None
             aerobic_te = round(act.get("aerobicTrainingEffect", 0), 1) if act.get("aerobicTrainingEffect") is not None else None
@@ -237,34 +237,38 @@ def main():
                     "laps": []
                 })
 
-        # 새로 수집된 세션이 없다면 건너뜀
+        # 새로 추가할 세션이 없으면 건너뜀
         if not new_sessions:
             continue
 
-        # 기존 세션 리스트 뒤에 새로운 세션들을 덧붙여 누적 (덮어쓰기 방지)
+        # 기존 세션 배열 뒤에 새로운 세션 누적 추가 (하루 다중 세션 보존)
         all_sessions = existing_sessions + new_sessions
         total_dist = sum(s.get("distance", 0) for s in all_sessions if s.get("sport") == "swim")
 
-        # 운동이 추가되었으므로 전체 세션을 종합하여 AI 코칭 리포트 생성
-        summary_lines = []
-        for s in all_sessions:
-            if s.get("sport") == "swim":
-                detail = f"- 수영: {s.get('distance')}m ({s.get('poolLength')}m 풀), 페이스 {s.get('pace')}/100m, SWOLF {s.get('swolf')}"
-                if s.get("avgHR"):
-                    detail += f", 평균심박 {s.get('avgHR')}bpm (최대 {s.get('maxHR')}bpm)"
-                if s.get("aerobicTE"):
-                    detail += f", 유산소효과 {s.get('aerobicTE')}, 무산소효과 {s.get('anaerobicTE')}"
-                summary_lines.append(detail)
-            elif s.get("sport") == "golf":
-                detail = f"- 골프: {s.get('title')}, {s.get('holes', 18)}홀 (스코어 {s.get('score', '-')}타), 라운딩 시간 {s.get('duration', 0)//60}분"
-                if s.get("calories"):
-                    detail += f", 소모칼로리 {s.get('calories')}kcal"
-                summary_lines.append(detail)
-            else:
-                summary_lines.append(f"- {s.get('sport')}: {s.get('title')}, 시간 {s.get('duration', 0)//60}분")
+        # 기존에 저장된 고품질 AI 피드백이 이미 있으면 보존, 없거나 세션이 새로 추가된 경우만 생성
+        existing_fb = existing_data.get("feedback1") if existing_data else ""
+        if existing_fb and len(existing_fb) > 50 and not new_sessions:
+            feedback1 = existing_fb
+        else:
+            summary_lines = []
+            for s in all_sessions:
+                if s.get("sport") == "swim":
+                    detail = f"- 수영: {s.get('distance')}m ({s.get('poolLength')}m 풀), 페이스 {s.get('pace')}/100m, SWOLF {s.get('swolf')}"
+                    if s.get("avgHR"):
+                        detail += f", 평균심박 {s.get('avgHR')}bpm (최대 {s.get('maxHR')}bpm)"
+                    if s.get("aerobicTE"):
+                        detail += f", 유산소효과 {s.get('aerobicTE')}, 무산소효과 {s.get('anaerobicTE')}"
+                    summary_lines.append(detail)
+                elif s.get("sport") == "golf":
+                    detail = f"- 골프: {s.get('title')}, {s.get('holes', 18)}홀 (스코어 {s.get('score', '-')}타), 라운딩 시간 {s.get('duration', 0)//60}분"
+                    if s.get("calories"):
+                        detail += f", 소모칼로리 {s.get('calories')}kcal"
+                    summary_lines.append(detail)
+                else:
+                    summary_lines.append(f"- {s.get('sport')}: {s.get('title')}, 시간 {s.get('duration', 0)//60}분")
 
-        feedback1 = generate_ai_analysis(date_str, "\n".join(summary_lines))
-        time.sleep(4)
+            feedback1 = generate_ai_analysis(date_str, "\n".join(summary_lines))
+            time.sleep(4)
 
         doc_payload = {
             "date": date_str,
