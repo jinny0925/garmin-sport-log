@@ -45,17 +45,17 @@ def generate_ai_analysis(date_str, sessions_summary):
 
     prompt = f"""
     당신은 1:1 퍼스널 스포츠 전문 코치입니다.
-    성인 회원을 위한 전문적이고 단정한 어조(~했습니다, ~보세요)로 하루 전체 운동을 종합 분석해 정확히 3문장으로 작성하세요.
-    뻔한 템플릿 문장을 배제하고, 제공된 세부 데이터(심박수, 영법 효율, 스트로크 수, 훈련 부하 등)를 구체적으로 언급하세요.
+    성인 회원을 위한 전문적이고 단정한 어조(~했습니다, ~보세요)로 하루 전체 운동(복수 종목 포함)을 종합 분석해 정확히 3문장으로 작성하세요.
+    뻔한 템플릿 문장을 배제하고, 제공된 세부 데이터(심박수, 영법/라운딩 효율, 훈련 부하 등)를 구체적으로 언급하세요.
 
     - 날짜: {date_str}
     - 당일 운동 세부 지표:
     {sessions_summary}
 
     [3문장 필수 형식]
-    1. 총평: {date_str}, [총 거리/운동량] [훈련 종류]를 완료했으며, [심박 반응 및 훈련 효과에 기반한 운동 목적 부합 여부]에 적합한 운동량입니다.
-    2. 데이터 분석: [페이스], [SWOLF], [레인 길이당 평균 스트로크 수 및 심박 데이터]는 [글라이딩 추진 효율 및 체력 안배 상태]를 분석합니다.
-    3. 실전 팁: 다음 훈련 시 [구체적인 영법 테크닉, 호흡 시 머리 축/코어 유지, 또는 킥 타이밍 등]에 집중해 보세요.
+    1. 총평: {date_str}, [총 거리/운동량 및 수행한 종목들] 훈련을 완료했으며, [심박 반응 및 훈련 효과에 기반한 운동 목적 부합 여부]에 적합한 운동량입니다.
+    2. 데이터 분석: [페이스/스코어], [SWOLF/심박], [효율 지표]는 [추진 글라이딩 및 체력 안배 상태]를 분석합니다.
+    3. 실전 팁: 다음 훈련 시 [구체적인 영법 테크닉, 스윙 템포/코어 유지 등]에 집중해 보세요.
     """
 
     model = genai.GenerativeModel("gemini-2.5-flash")
@@ -102,7 +102,7 @@ def main():
         return
 
     client = get_garmin_client()
-    raw_activities = client.get_activities(0, 15)
+    raw_activities = client.get_activities(0, 20)
 
     grouped = {}
     for act in raw_activities:
@@ -116,7 +116,10 @@ def main():
         doc_ref = db.collection("activities").document(date_str)
         doc = doc_ref.get()
         existing_data = doc.to_dict() if doc.exists else None
-        existing_ids = {str(s.get("id")) for s in existing_data.get("sessions", [])} if existing_data else set()
+        
+        # 기존 저장된 세션 ID 목록 파악
+        existing_sessions = existing_data.get("sessions", []) if existing_data else []
+        existing_ids = {str(s.get("id")) for s in existing_sessions}
 
         new_sessions = []
         for act in acts:
@@ -127,9 +130,9 @@ def main():
             act_type = act.get("activityType", {}).get("typeKey", "").lower()
             title = act.get("activityName", "운동")
             loc_name = act.get("locationName", "")
-            dur = act.get("duration", 0)
+            dur = round(act.get("duration", 0))
 
-            # 세부 디테일 데이터 추출
+            # 심박수 및 운동 부하 지표
             avg_hr = round(act.get("averageHR", 0)) if act.get("averageHR") else None
             max_hr = round(act.get("maxHR", 0)) if act.get("maxHR") else None
             aerobic_te = round(act.get("aerobicTrainingEffect", 0), 1) if act.get("aerobicTrainingEffect") is not None else None
@@ -137,8 +140,8 @@ def main():
             training_load = round(act.get("trainingStressScore", 0)) if act.get("trainingStressScore") else None
             calories = round(act.get("calories", 0)) if act.get("calories") else None
 
+            # 1. 수영 세션
             if "swim" in act_type or "pool" in act_type:
-                sport, icon = "swim", "🏊"
                 dist = round(act.get("distance", 0))
                 avg_speed = act.get("averageSpeed", 0)
                 if avg_speed > 0:
@@ -148,14 +151,22 @@ def main():
                     pace = f"{int(dur / (dist / 100)) // 60}'{int(dur / (dist / 100)) % 60:02d}\"" if dist > 0 else "-"
 
                 swolf = round(act.get("averageSwolf", 0)) if act.get("averageSwolf") else None
-                pool_len = round(act.get("poolLength", 25)) if act.get("poolLength") else 25
+                
+                # 풀 길이(m) 정규화 (2500cm -> 25m)
+                raw_pool = act.get("poolLength", 25)
+                if raw_pool and raw_pool > 200:
+                    pool_len = round(raw_pool / 100)
+                else:
+                    pool_len = round(raw_pool) if raw_pool else 25
+
+                # 스트로크 수 정규화
                 avg_strokes = round(act.get("averageSwimCadence", 0), 1) if act.get("averageSwimCadence") else None
                 laps = parse_swim_laps(client, act_id, dur, dist, swolf)
 
                 new_sessions.append({
                     "id": act_id,
-                    "sport": sport,
-                    "icon": icon,
+                    "sport": "swim",
+                    "icon": "🏊",
                     "title": title,
                     "location": loc_name,
                     "distance": dist,
@@ -172,6 +183,28 @@ def main():
                     "duration": dur,
                     "laps": laps
                 })
+
+            # 2. 골프 세션
+            elif "golf" in act_type:
+                score = act.get("strokes") or act.get("score")
+                holes = act.get("holesCompleted") or 18
+                new_sessions.append({
+                    "id": act_id,
+                    "sport": "golf",
+                    "icon": "⛳",
+                    "title": title,
+                    "location": loc_name,
+                    "score": score,
+                    "holes": holes,
+                    "duration": dur,
+                    "avgHR": avg_hr,
+                    "maxHR": max_hr,
+                    "trainingLoad": training_load,
+                    "calories": calories,
+                    "laps": []
+                })
+
+            # 3. 프리다이빙 / 아프네아 세션
             elif "div" in act_type or "apnea" in act_type:
                 new_sessions.append({
                     "id": act_id,
@@ -183,8 +216,11 @@ def main():
                     "duration": dur,
                     "avgHR": avg_hr,
                     "maxHR": max_hr,
+                    "calories": calories,
                     "laps": []
                 })
+
+            # 4. 기타 운동 (러닝, 웨이트 등)
             else:
                 new_sessions.append({
                     "id": act_id,
@@ -192,35 +228,43 @@ def main():
                     "icon": "🏅",
                     "title": title,
                     "location": loc_name,
+                    "distance": round(act.get("distance", 0)) if act.get("distance") else None,
                     "duration": dur,
                     "avgHR": avg_hr,
                     "maxHR": max_hr,
+                    "trainingLoad": training_load,
+                    "calories": calories,
                     "laps": []
                 })
 
+        # 새로 수집된 세션이 없다면 건너뜀
         if not new_sessions:
             continue
 
-        all_sessions = (existing_data.get("sessions", []) if existing_data else []) + new_sessions
-        total_dist = sum(s.get("distance", 0) for s in all_sessions)
+        # 기존 세션 리스트 뒤에 새로운 세션들을 덧붙여 누적 (덮어쓰기 방지)
+        all_sessions = existing_sessions + new_sessions
+        total_dist = sum(s.get("distance", 0) for s in all_sessions if s.get("sport") == "swim")
 
-        # AI 피드백 1회 생성 (정밀 수치 프롬프트 반영)
-        feedback1 = existing_data.get("feedback1") if existing_data and existing_data.get("feedback1") else ""
-        if not feedback1:
-            summary_lines = []
-            for s in all_sessions:
-                if s.get("sport") == "swim":
-                    detail_str = f"- 수영: {s.get('distance')}m (풀길이 {s.get('poolLength')}m), 페이스 {s.get('pace')}/100m, SWOLF {s.get('swolf')}, 레인당 스트로크 {s.get('avgStrokes')}회"
-                    if s.get("avgHR"):
-                        detail_str += f", 평균심박 {s.get('avgHR')}bpm (최대 {s.get('maxHR')}bpm)"
-                    if s.get("aerobicTE"):
-                        detail_str += f", 유산소효과 {s.get('aerobicTE')}, 무산소효과 {s.get('anaerobicTE')}"
-                    summary_lines.append(detail_str)
-                else:
-                    summary_lines.append(f"- {s.get('sport')}: {s.get('title')}, 시간 {s.get('duration')//60}분")
+        # 운동이 추가되었으므로 전체 세션을 종합하여 AI 코칭 리포트 생성
+        summary_lines = []
+        for s in all_sessions:
+            if s.get("sport") == "swim":
+                detail = f"- 수영: {s.get('distance')}m ({s.get('poolLength')}m 풀), 페이스 {s.get('pace')}/100m, SWOLF {s.get('swolf')}"
+                if s.get("avgHR"):
+                    detail += f", 평균심박 {s.get('avgHR')}bpm (최대 {s.get('maxHR')}bpm)"
+                if s.get("aerobicTE"):
+                    detail += f", 유산소효과 {s.get('aerobicTE')}, 무산소효과 {s.get('anaerobicTE')}"
+                summary_lines.append(detail)
+            elif s.get("sport") == "golf":
+                detail = f"- 골프: {s.get('title')}, {s.get('holes', 18)}홀 (스코어 {s.get('score', '-')}타), 라운딩 시간 {s.get('duration', 0)//60}분"
+                if s.get("calories"):
+                    detail += f", 소모칼로리 {s.get('calories')}kcal"
+                summary_lines.append(detail)
+            else:
+                summary_lines.append(f"- {s.get('sport')}: {s.get('title')}, 시간 {s.get('duration', 0)//60}분")
 
-            feedback1 = generate_ai_analysis(date_str, "\n".join(summary_lines))
-            time.sleep(5)
+        feedback1 = generate_ai_analysis(date_str, "\n".join(summary_lines))
+        time.sleep(4)
 
         doc_payload = {
             "date": date_str,
@@ -232,7 +276,7 @@ def main():
         }
 
         doc_ref.set(doc_payload, merge=True)
-        print(f"[{date_str}] Firestore 저장 완료!")
+        print(f"[{date_str}] 총 {len(all_sessions)}개 세션 Firestore 저장 완료!")
 
 if __name__ == "__main__":
     main()
