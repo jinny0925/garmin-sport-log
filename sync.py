@@ -42,13 +42,23 @@ if GEMINI_API_KEY:
 def get_garmin_client(email, password):
     if not email or not password:
         return None
-    try:
-        client = Garmin(email, password)
-        client.login()
-        return client
-    except Exception as e:
-        print(f"가민 로그인 실패 ({email}): {e}")
-        return None
+    
+    # 3번까지 재시도하되, 실패할 때마다 10초~20초씩 쉬어가며 로그인 시도
+    for attempt in range(3):
+        try:
+            client = Garmin(email, password)
+            client.login()
+            print(f"가민 로그인 성공! ({email})")
+            return client
+        except Exception as e:
+            err_msg = str(e)
+            print(f"가민 로그인 실패 ({email}) 시도 {attempt+1}/3: {err_msg[:60]}")
+            if "429" in err_msg or "rate limited" in err_msg.lower():
+                print("⏳ 가민 IP 429 차단 감지: 30초 대기 후 재시도합니다...")
+                time.sleep(30)
+            else:
+                time.sleep(5)
+    return None
 
 def generate_ai_analysis(user_name, date_str, sessions_summary):
     if not GEMINI_API_KEY:
